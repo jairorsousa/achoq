@@ -7,6 +7,14 @@ import Button3D from "@/components/ui/Button3D";
 
 type AuthMode = "signin" | "signup";
 
+function getEmailRedirectUrl(): string | undefined {
+  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const baseUrl = configuredAppUrl || browserOrigin;
+  if (!baseUrl) return undefined;
+  return `${baseUrl.replace(/\/+$/, "")}/login`;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("signin");
@@ -56,22 +64,35 @@ export default function LoginPage() {
         return;
       }
 
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const emailRedirectTo = getEmailRedirectUrl();
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: emailRedirectTo ? { emailRedirectTo } : undefined,
       });
 
       if (signUpError) {
         throw signUpError;
       }
 
-      if (data.session) {
-        router.replace("/onboarding");
-        return;
+      let user = signUpData.user;
+
+      if (!signUpData.session) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (signInError) {
+          throw signInError;
+        }
+        user = signInData.user;
       }
 
-      setMessage("Conta criada. Verifique seu email para confirmar o acesso.");
-      setMode("signin");
+      const hasProfile =
+        typeof user?.user_metadata?.username === "string" &&
+        user.user_metadata.username.trim().length > 0;
+      router.replace(hasProfile ? "/home" : "/onboarding");
+      return;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Falha na autenticacao.";
       setError(msg);

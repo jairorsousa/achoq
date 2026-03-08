@@ -39,10 +39,16 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 Set the following environment variables in Vercel (Project Settings -> Environment Variables) for `Production`, `Preview`, and `Development`:
 
+- `NEXT_PUBLIC_APP_URL` (example: `https://seu-dominio.com`)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`)
 
 After saving env vars, trigger a new deployment.
+
+In Supabase Auth (Authentication -> URL Configuration), also set:
+
+- `Site URL`: your production domain (not localhost)
+- `Redirect URLs`: include your production domain and preview domains (for example `https://seu-dominio.com/*` and `https://*.vercel.app/*`)
 
 ### Admin access (Supabase Auth)
 
