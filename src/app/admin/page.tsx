@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase/config";
@@ -12,6 +12,7 @@ import type { EconomySnapshot, Event, Season, User } from "@/lib/types";
 import { timeRemaining, formatCompact, formatCoins } from "@/lib/utils/format";
 
 type Tab = "events" | "create" | "users" | "seasons" | "metrics";
+type EventFilter = "all" | Event["status"];
 
 interface EconomyAlert {
   id: string;
@@ -106,6 +107,11 @@ export default function AdminPage() {
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState("");
   const [tab, setTab] = useState<Tab>("events");
+  const [eventSearch, setEventSearch] = useState("");
+  const [eventFilter, setEventFilter] = useState<EventFilter>("all");
+  const [eventAction, setEventAction] = useState<{ eventId: string; action: string } | null>(null);
+  const [seasonActionId, setSeasonActionId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const [seasonForm, setSeasonForm] = useState({
     name: "",
@@ -117,6 +123,15 @@ export default function AdminPage() {
     active: false,
   });
   const [seasonLoading, setSeasonLoading] = useState(false);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => {
+      setNotice(null);
+    }, 3500);
+
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
 
   useEffect(() => {
     let mounted = true;
@@ -298,6 +313,7 @@ export default function AdminPage() {
         throw new Error(error.message);
       }
       setResolveModal(null);
+      setNotice({ type: "success", message: "Evento resolvido com sucesso." });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro desconhecido.";
       setResolveError(`Falha ao resolver evento: ${msg}`);
@@ -337,6 +353,10 @@ export default function AdminPage() {
         bannerText: "",
         active: false,
       });
+      setNotice({ type: "success", message: "Temporada criada com sucesso." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Falha ao criar temporada.";
+      setNotice({ type: "error", message: msg });
     } finally {
       setSeasonLoading(false);
     }
@@ -372,8 +392,114 @@ export default function AdminPage() {
     return { sponsoredCount: sponsored.length, totalImpressions, totalParticipations };
   }, [events]);
 
+  const overview = useMemo(() => {
+    const openEvents = events.filter((event) => event.status === "open").length;
+    const resolvedEvents = events.filter((event) => event.status === "resolved").length;
+    const totalCoinsInEvents = events.reduce((sum, event) => sum + Number(event.totalCoins ?? 0), 0);
+    const activeUsers7d = users.filter((user) => {
+      if (!user.lastActiveDate) return false;
+      const diffMs = Date.now() - new Date(user.lastActiveDate).getTime();
+      return diffMs <= 7 * 24 * 60 * 60 * 1000;
+    }).length;
+
+    return {
+      totalUsers: users.length,
+      openEvents,
+      resolvedEvents,
+      totalCoinsInEvents,
+      activeUsers7d,
+      alertsCount: alerts.length,
+    };
+  }, [alerts.length, events, users]);
+
+  const filteredEvents = useMemo(() => {
+    const normalizedSearch = eventSearch.trim().toLowerCase();
+    return events.filter((event) => {
+      if (eventFilter !== "all" && event.status !== eventFilter) return false;
+      if (!normalizedSearch) return true;
+      return (
+        event.title.toLowerCase().includes(normalizedSearch) ||
+        event.category.toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [eventFilter, eventSearch, events]);
+
+  const isEventActionLoading = (eventId: string, action: string) =>
+    eventAction?.eventId === eventId && eventAction.action === action;
+
+  async function runEventUpdate(
+    event: Event,
+    action: string,
+    values: Record<string, unknown>,
+    successMessage: string
+  ) {
+    setEventAction({ eventId: event.id, action });
+    try {
+      const { error } = await supabase.from("events").update(values).eq("id", event.id);
+      if (error) throw new Error(error.message);
+      setNotice({ type: "success", message: successMessage });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Falha ao atualizar evento.";
+      setNotice({ type: "error", message: msg });
+    } finally {
+      setEventAction(null);
+    }
+  }
+
+  async function handleToggleSeasonActive(season: Season) {
+    setSeasonActionId(season.id);
+    try {
+      const { error } = await supabase
+        .from("seasons")
+        .update({ active: !season.active })
+        .eq("id", season.id);
+
+      if (error) throw new Error(error.message);
+      setNotice({
+        type: "success",
+        message: `Temporada ${!season.active ? "ativada" : "desativada"}.`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Falha ao atualizar temporada.";
+      setNotice({ type: "error", message: msg });
+    } finally {
+      setSeasonActionId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {notice && (
+        <div
+          className={[
+            "rounded-2xl p-3 text-sm font-bold",
+            notice.type === "success" ? "bg-sim/10 text-sim" : "bg-nao/10 text-nao",
+          ].join(" ")}
+        >
+          {notice.message}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <Card className="p-3">
+          <p className="text-xs text-gray-500">Usuarios</p>
+          <p className="text-xl font-extrabold text-gray-900">{formatCompact(overview.totalUsers)}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Ativos 7d: {formatCompact(overview.activeUsers7d)}</p>
+        </Card>
+
+        <Card className="p-3">
+          <p className="text-xs text-gray-500">Eventos abertos</p>
+          <p className="text-xl font-extrabold text-sim">{formatCompact(overview.openEvents)}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Resolvidos: {formatCompact(overview.resolvedEvents)}</p>
+        </Card>
+
+        <Card className="p-3 col-span-2 md:col-span-1">
+          <p className="text-xs text-gray-500">Volume total Q$</p>
+          <p className="text-xl font-extrabold text-coin-dark">{formatCoins(overview.totalCoinsInEvents)}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Alertas: {formatCompact(overview.alertsCount)}</p>
+        </Card>
+      </div>
+
       <div className="flex gap-2 overflow-x-auto pb-1">
         {TABS.map((t) => (
           <button
@@ -393,14 +519,38 @@ export default function AdminPage() {
 
       {tab === "events" && (
         <div className="space-y-3">
-          {events.length === 0 && (
+          <Card>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input
+                type="text"
+                value={eventSearch}
+                onChange={(e) => setEventSearch(e.target.value)}
+                placeholder="Buscar por titulo ou categoria"
+                className="md:col-span-2 border-2 border-gray-200 rounded-2xl px-4 py-3 font-semibold outline-none focus:border-primary"
+              />
+              <select
+                value={eventFilter}
+                onChange={(e) => setEventFilter(e.target.value as EventFilter)}
+                className="border-2 border-gray-200 rounded-2xl px-4 py-3 font-semibold outline-none focus:border-primary bg-white"
+              >
+                <option value="all">Todos</option>
+                <option value="open">Abertos</option>
+                <option value="closed">Fechados</option>
+                <option value="resolved">Resolvidos</option>
+                <option value="cancelled">Cancelados</option>
+              </select>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">Mostrando {filteredEvents.length} evento(s)</p>
+          </Card>
+
+          {filteredEvents.length === 0 && (
             <Card>
-              <p className="text-center text-gray-400 py-8">Nenhum evento criado ainda.</p>
+              <p className="text-center text-gray-400 py-8">Nenhum evento encontrado para os filtros atuais.</p>
             </Card>
           )}
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <Card key={event.id}>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-bold text-gray-900 text-sm leading-tight flex-1">
                     {event.featured && <span className="text-coin">* </span>}
@@ -417,16 +567,17 @@ export default function AdminPage() {
                   </span>
                 </div>
 
-                <div className="text-xs text-gray-400 flex gap-4 flex-wrap">
+                <div className="text-xs text-gray-500 flex gap-4 flex-wrap">
                   <span>{event.category}</span>
                   {event.seasonId && <span>Temporada: {event.seasonId}</span>}
                   <span>Tempo: {timeRemaining(event.closesAt)}</span>
                   <span>Palpites: {formatCompact(event.totalBets)}</span>
                   <span>Q$: {formatCompact(event.totalCoins)}</span>
+                  {event.sponsored && <span>Impressoes: {formatCompact(event.sponsorImpressions ?? 0)}</span>}
                 </div>
 
                 {event.status === "open" && (
-                  <div className="flex gap-2 pt-1">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button3D
                       variant="sim"
                       size="sm"
@@ -449,6 +600,73 @@ export default function AdminPage() {
                     </Button3D>
                   </div>
                 )}
+
+                <div className="flex flex-wrap gap-2">
+                  {event.status === "open" && (
+                    <Button3D
+                      variant="ghost"
+                      size="sm"
+                      loading={isEventActionLoading(event.id, "close")}
+                      onClick={() => {
+                        void runEventUpdate(event, "close", { status: "closed" }, "Evento fechado para novas apostas.");
+                      }}
+                    >
+                      Fechar apostas
+                    </Button3D>
+                  )}
+
+                  {(event.status === "closed" || event.status === "cancelled") && (
+                    <Button3D
+                      variant="ghost"
+                      size="sm"
+                      loading={isEventActionLoading(event.id, "reopen")}
+                      onClick={() => {
+                        void runEventUpdate(
+                          event,
+                          "reopen",
+                          { status: "open", result: null, resolved_at: null },
+                          "Evento reaberto com sucesso."
+                        );
+                      }}
+                    >
+                      Reabrir
+                    </Button3D>
+                  )}
+
+                  {event.status !== "resolved" && event.status !== "cancelled" && (
+                    <Button3D
+                      variant="nao"
+                      size="sm"
+                      loading={isEventActionLoading(event.id, "cancel")}
+                      onClick={() => {
+                        void runEventUpdate(
+                          event,
+                          "cancel",
+                          { status: "cancelled", result: null, resolved_at: new Date().toISOString() },
+                          "Evento cancelado."
+                        );
+                      }}
+                    >
+                      Cancelar
+                    </Button3D>
+                  )}
+
+                  <Button3D
+                    variant="coin"
+                    size="sm"
+                    loading={isEventActionLoading(event.id, "feature")}
+                    onClick={() => {
+                      void runEventUpdate(
+                        event,
+                        "feature",
+                        { featured: !event.featured },
+                        event.featured ? "Evento removido dos destaques." : "Evento destacado."
+                      );
+                    }}
+                  >
+                    {event.featured ? "Remover destaque" : "Destacar"}
+                  </Button3D>
+                </div>
               </div>
             </Card>
           ))}
@@ -546,9 +764,21 @@ export default function AdminPage() {
                     <p className="font-extrabold text-gray-900">{s.name}</p>
                     <p className="text-xs text-gray-400">{s.slug} - {s.active ? "Ativa" : "Inativa"}</p>
                   </div>
-                  <span className="text-xs font-bold" style={{ color: s.themeColor ?? "#7C3AED" }}>
-                    {s.themeColor ?? "#7C3AED"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: s.themeColor ?? "#7C3AED" }}>
+                      {s.themeColor ?? "#7C3AED"}
+                    </span>
+                    <Button3D
+                      variant="ghost"
+                      size="sm"
+                      loading={seasonActionId === s.id}
+                      onClick={() => {
+                        void handleToggleSeasonActive(s);
+                      }}
+                    >
+                      {s.active ? "Desativar" : "Ativar"}
+                    </Button3D>
+                  </div>
                 </div>
               </Card>
             ))}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE = "achoq_session";
+const ROLE_COOKIE = "achoq_role";
 
 const PUBLIC_PATHS = ["/login", "/verify", "/onboarding"];
 const ADMIN_PATHS = ["/admin"];
@@ -9,22 +10,26 @@ const AUTH_PATHS = ["/home", "/explorar", "/ranking", "/lojinha", "/perfil", "/e
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const session = request.cookies.get(SESSION_COOKIE)?.value;
+  const role = request.cookies.get(ROLE_COOKIE)?.value;
   const isAuthenticated = Boolean(session);
 
-  // Admin check (basic — real check happens client-side with custom claim)
+  // Admin route check. Real authorization is enforced by Supabase RLS.
   if (ADMIN_PATHS.some((p) => pathname.startsWith(p))) {
     if (!isAuthenticated) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
+    if (role !== "admin") {
+      return NextResponse.redirect(new URL("/home", request.url));
+    }
     return NextResponse.next();
   }
 
-  // If authenticated and trying to access auth pages → redirect to home
+  // If authenticated and trying to access auth pages, redirect to home.
   if (isAuthenticated && PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL("/home", request.url));
   }
 
-  // If not authenticated and trying to access protected pages → redirect to login
+  // If not authenticated and trying to access protected pages, redirect to login.
   if (!isAuthenticated && AUTH_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL("/login", request.url));
   }

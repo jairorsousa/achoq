@@ -138,6 +138,8 @@ export default function PerfilPage() {
   const wonBets = bets.filter((b) => b.status === "won").length;
   const winRate = totalBets > 0 ? Math.round((wonBets / totalBets) * 100) : 0;
   const { current: xpCurrent, max: xpMax } = xpForNextLevel(profile.level, profile.xp);
+  const isAdmin =
+    firebaseUser?.permissionLevel === "admin" || Boolean(firebaseUser?.isAdmin);
 
   const betStatusColor: Record<string, string> = {
     won: "text-sim font-bold",
@@ -285,6 +287,17 @@ export default function PerfilPage() {
             ))
           )}
         </div>
+      )}
+
+      {isAdmin && (
+        <Button3D
+          variant="primary"
+          size="md"
+          className="w-full"
+          onClick={() => router.push("/admin")}
+        >
+          Abrir painel admin
+        </Button3D>
       )}
 
       <Button3D variant="ghost" size="md" className="w-full" onClick={handleSignOut}>

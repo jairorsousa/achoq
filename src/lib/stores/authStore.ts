@@ -3,6 +3,7 @@ import { create } from "zustand";
 export interface AppAuthUser {
   uid: string;
   email: string | null;
+  permissionLevel: "user" | "admin";
   isAdmin: boolean;
 }
 
