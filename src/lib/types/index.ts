@@ -19,6 +19,17 @@ export interface User {
 export type EventCategory = "esportes" | "politica" | "entretenimento" | "tecnologia" | "economia" | "outros";
 export type EventStatus = "open" | "closed" | "resolved" | "cancelled";
 
+export interface EventOption {
+  id: string;
+  eventId: string;
+  label: string;
+  sortOrder: number;
+  simPool: number;
+  naoPool: number;
+  totalBets: number;
+  active: boolean;
+}
+
 export interface Event {
   id: string;
   title: string;
@@ -38,7 +49,8 @@ export interface Event {
   sponsorParticipations?: number;
   seasonId?: string;
   seasonName?: string;
-  result?: "sim" | "nao";
+  winnerOptionId?: string;
+  options?: EventOption[];
   createdBy: string;
   createdAt: string;
   closesAt: string;
@@ -52,6 +64,7 @@ export interface Bet {
   id: string;
   userId: string;
   eventId: string;
+  optionId: string;
   choice: BetChoice;
   amount: number;
   status: BetStatus;

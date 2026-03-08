@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase/config";
-import { mapEventRow, mapSeasonRow } from "@/lib/supabase/mappers";
+import { mapEventOptionRow, mapEventRow, mapSeasonRow } from "@/lib/supabase/mappers";
 import AdminEventForm from "@/components/admin/AdminEventForm";
 import Card from "@/components/ui/Card";
 import Button3D from "@/components/ui/Button3D";
 import Modal from "@/components/ui/Modal";
 import Avatar from "@/components/ui/Avatar";
-import type { EconomySnapshot, Event, Season, User } from "@/lib/types";
+import type { EconomySnapshot, Event, EventOption, Season, User } from "@/lib/types";
 import { timeRemaining, formatCompact, formatCoins } from "@/lib/utils/format";
 
 type Tab = "events" | "create" | "users" | "seasons" | "metrics";
@@ -102,7 +102,8 @@ export default function AdminPage() {
 
   const [resolveModal, setResolveModal] = useState<{
     event: Event;
-    result: "sim" | "nao" | null;
+    options: EventOption[];
+    winnerOptionId: string | null;
   } | null>(null);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState("");
@@ -300,14 +301,44 @@ export default function AdminPage() {
     };
   }, []);
 
+  async function openResolveModal(event: Event) {
+    setResolveError("");
+    try {
+      const { data, error } = await supabase
+        .from("event_options")
+        .select("*")
+        .eq("event_id", event.id)
+        .order("sort_order", { ascending: true });
+
+      if (error) throw new Error(error.message);
+
+      const options = (data ?? []).map((row) =>
+        mapEventOptionRow(row as Parameters<typeof mapEventOptionRow>[0])
+      );
+
+      if (options.length === 0) {
+        throw new Error("Evento sem alternativas cadastradas.");
+      }
+
+      setResolveModal({
+        event,
+        options,
+        winnerOptionId: options[0]?.id ?? null,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao carregar alternativas.";
+      setNotice({ type: "error", message: msg });
+    }
+  }
+
   async function handleResolve() {
-    if (!resolveModal?.event || !resolveModal.result) return;
+    if (!resolveModal?.event || !resolveModal.winnerOptionId) return;
     setResolveError("");
     setResolving(true);
     try {
       const { error } = await supabase.rpc("resolve_event", {
         p_event_id: resolveModal.event.id,
-        p_result: resolveModal.result,
+        p_winner_option_id: resolveModal.winnerOptionId,
       });
       if (error) {
         throw new Error(error.message);
@@ -577,26 +608,15 @@ export default function AdminPage() {
                 </div>
 
                 {event.status === "open" && (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2">
                     <Button3D
-                      variant="sim"
+                      variant="primary"
                       size="sm"
                       onClick={() => {
-                        setResolveError("");
-                        setResolveModal({ event, result: "sim" });
+                        void openResolveModal(event);
                       }}
                     >
-                      Resolver SIM
-                    </Button3D>
-                    <Button3D
-                      variant="nao"
-                      size="sm"
-                      onClick={() => {
-                        setResolveError("");
-                        setResolveModal({ event, result: "nao" });
-                      }}
-                    >
-                      Resolver NAO
+                      Resolver evento
                     </Button3D>
                   </div>
                 )}
@@ -624,7 +644,7 @@ export default function AdminPage() {
                         void runEventUpdate(
                           event,
                           "reopen",
-                          { status: "open", result: null, resolved_at: null },
+                          { status: "open", winner_option_id: null, resolved_at: null },
                           "Evento reaberto com sucesso."
                         );
                       }}
@@ -642,7 +662,7 @@ export default function AdminPage() {
                         void runEventUpdate(
                           event,
                           "cancel",
-                          { status: "cancelled", result: null, resolved_at: new Date().toISOString() },
+                          { status: "cancelled", winner_option_id: null, resolved_at: new Date().toISOString() },
                           "Evento cancelado."
                         );
                       }}
@@ -864,8 +884,25 @@ export default function AdminPage() {
         {resolveModal && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Definir resultado de: <strong>{resolveModal.event.title}</strong>
+              Definir alternativa vencedora de: <strong>{resolveModal.event.title}</strong>
             </p>
+            <div className="space-y-2">
+              {resolveModal.options.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setResolveModal((prev) => (prev ? { ...prev, winnerOptionId: option.id } : prev))}
+                  className={[
+                    "w-full text-left rounded-2xl border px-3 py-2 text-sm font-semibold transition-colors",
+                    resolveModal.winnerOptionId === option.id
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-gray-200 bg-white text-gray-700",
+                  ].join(" ")}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             {resolveError && (
               <div className="bg-nao/10 rounded-2xl p-3">
                 <p className="text-nao text-sm font-semibold">{resolveError}</p>
@@ -877,9 +914,10 @@ export default function AdminPage() {
                 Cancelar
               </Button3D>
               <Button3D
-                variant={resolveModal.result === "sim" ? "sim" : "nao"}
+                variant="primary"
                 className="flex-1"
                 loading={resolving}
+                disabled={!resolveModal.winnerOptionId}
                 onClick={handleResolve}
               >
                 Confirmar

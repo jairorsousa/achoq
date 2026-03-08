@@ -177,24 +177,38 @@ create table if not exists public.events (
   sponsor_participations integer not null default 0 check (sponsor_participations >= 0),
   featured boolean not null default false,
   season_id uuid references public.seasons(id) on delete set null,
-  result public.bet_choice,
+  winner_option_id uuid,
   created_by uuid not null references public.users(id) on delete restrict,
   closes_at timestamptz not null,
   created_at timestamptz not null default now(),
   resolved_at timestamptz
 );
 
+create table if not exists public.event_options (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.events(id) on delete cascade,
+  label text not null,
+  sort_order integer not null default 0,
+  sim_pool bigint not null default 0 check (sim_pool >= 0),
+  nao_pool bigint not null default 0 check (nao_pool >= 0),
+  total_bets integer not null default 0 check (total_bets >= 0),
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (event_id, label)
+);
+
 create table if not exists public.bets (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   event_id uuid not null references public.events(id) on delete cascade,
+  option_id uuid not null references public.event_options(id) on delete cascade,
   choice public.bet_choice not null,
   amount bigint not null check (amount >= 10),
   status public.bet_status not null default 'pending',
   payout bigint check (payout is null or payout >= 0),
   created_at timestamptz not null default now(),
   resolved_at timestamptz,
-  unique (user_id, event_id)
+  unique (user_id, option_id)
 );
 
 create table if not exists public.transactions (
@@ -324,6 +338,12 @@ create table if not exists public.security_alerts (
   created_at timestamptz not null default now()
 );
 
+alter table public.events
+  drop constraint if exists events_winner_option_id_fkey;
+alter table public.events
+  add constraint events_winner_option_id_fkey
+  foreign key (winner_option_id) references public.event_options(id) on delete set null;
+
 -- =========================================================
 -- 4) Indexes
 -- =========================================================
@@ -331,7 +351,9 @@ create index if not exists idx_users_xp_desc on public.users (xp desc);
 create index if not exists idx_users_coins_desc on public.users (coins desc);
 create index if not exists idx_events_status_created_at on public.events (status, created_at desc);
 create index if not exists idx_events_closes_at on public.events (closes_at);
+create index if not exists idx_event_options_event_sort on public.event_options (event_id, sort_order);
 create index if not exists idx_bets_event_status on public.bets (event_id, status);
+create index if not exists idx_bets_option_status on public.bets (option_id, status);
 create index if not exists idx_bets_user_created_at on public.bets (user_id, created_at desc);
 create index if not exists idx_transactions_user_created_at on public.transactions (user_id, created_at desc);
 create index if not exists idx_shop_items_available_price on public.shop_items (available, price);
@@ -400,6 +422,7 @@ alter table public.users enable row level security;
 alter table public.usernames enable row level security;
 alter table public.seasons enable row level security;
 alter table public.events enable row level security;
+alter table public.event_options enable row level security;
 alter table public.bets enable row level security;
 alter table public.transactions enable row level security;
 alter table public.rankings enable row level security;
@@ -506,6 +529,22 @@ to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 
+-- event_options
+drop policy if exists event_options_select_authenticated on public.event_options;
+create policy event_options_select_authenticated
+on public.event_options
+for select
+to authenticated
+using (true);
+
+drop policy if exists event_options_write_admin on public.event_options;
+create policy event_options_write_admin
+on public.event_options
+for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
 -- bets
 drop policy if exists bets_select_owner_or_admin on public.bets;
 create policy bets_select_owner_or_admin
@@ -523,6 +562,13 @@ with check (
   user_id = auth.uid()
   and status = 'pending'
   and amount >= 10
+  and exists (
+    select 1
+    from public.event_options eo
+    where eo.id = option_id
+      and eo.event_id = event_id
+      and eo.active = true
+  )
   and exists (
     select 1
     from public.events e
@@ -787,6 +833,7 @@ with check (public.is_admin());
 -- =========================================================
 create or replace function public.place_bet(
   p_event_id uuid,
+  p_option_id uuid,
   p_choice public.bet_choice,
   p_amount bigint
 )
@@ -798,6 +845,7 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_event public.events%rowtype;
+  v_option public.event_options%rowtype;
   v_user public.users%rowtype;
   v_bet_id uuid := gen_random_uuid();
   v_tx_id uuid := gen_random_uuid();
@@ -824,13 +872,28 @@ begin
     raise exception 'Event is closed.';
   end if;
 
+  select *
+  into v_option
+  from public.event_options
+  where id = p_option_id
+    and event_id = p_event_id
+  for update;
+
+  if not found then
+    raise exception 'Option not found for this event.';
+  end if;
+
+  if not coalesce(v_option.active, true) then
+    raise exception 'Option is not active.';
+  end if;
+
   if exists (
     select 1
     from public.bets
     where user_id = v_uid
-      and event_id = p_event_id
+      and option_id = p_option_id
   ) then
-    raise exception 'You already placed a bet on this event.';
+    raise exception 'You already placed a bet on this option.';
   end if;
 
   select *
@@ -854,10 +917,17 @@ begin
   where id = v_uid;
 
   insert into public.bets (
-    id, user_id, event_id, choice, amount, status
+    id, user_id, event_id, option_id, choice, amount, status
   ) values (
-    v_bet_id, v_uid, p_event_id, p_choice, p_amount, 'pending'
+    v_bet_id, v_uid, p_event_id, p_option_id, p_choice, p_amount, 'pending'
   );
+
+  update public.event_options
+  set
+    sim_pool = sim_pool + case when p_choice = 'sim' then p_amount else 0 end,
+    nao_pool = nao_pool + case when p_choice = 'nao' then p_amount else 0 end,
+    total_bets = total_bets + 1
+  where id = p_option_id;
 
   update public.events
   set
@@ -886,7 +956,12 @@ begin
     'bet_placed',
     -p_amount,
     'coin',
-    format('Aposta em "%s" - %s', v_event.title, upper(p_choice::text)),
+    format(
+      'Aposta em "%s" - %s (%s)',
+      v_event.title,
+      v_option.label,
+      upper(p_choice::text)
+    ),
     p_event_id
   );
 
@@ -922,7 +997,7 @@ $$;
 
 create or replace function public.resolve_event(
   p_event_id uuid,
-  p_result public.bet_choice
+  p_winner_option_id uuid
 )
 returns jsonb
 language plpgsql
@@ -931,7 +1006,10 @@ set search_path = public
 as $$
 declare
   v_event public.events%rowtype;
+  v_winner_option public.event_options%rowtype;
   v_bet record;
+  v_is_winner boolean;
+  v_option_label text;
   v_total_pot bigint := 0;
   v_winners_total bigint := 0;
   v_winners_count integer := 0;
@@ -958,6 +1036,17 @@ begin
     raise exception 'Event is not open.';
   end if;
 
+  select *
+  into v_winner_option
+  from public.event_options
+  where id = p_winner_option_id
+    and event_id = p_event_id
+  for update;
+
+  if not found then
+    raise exception 'Winner option not found for this event.';
+  end if;
+
   for v_bet in
     select *
     from public.bets
@@ -966,7 +1055,13 @@ begin
     for update
   loop
     v_total_pot := v_total_pot + coalesce(v_bet.amount, 0);
-    if v_bet.choice = p_result then
+    v_is_winner := (
+      (v_bet.option_id = p_winner_option_id and v_bet.choice = 'sim')
+      or
+      (v_bet.option_id <> p_winner_option_id and v_bet.choice = 'nao')
+    );
+
+    if v_is_winner then
       v_winners_total := v_winners_total + coalesce(v_bet.amount, 0);
       v_winners_count := v_winners_count + 1;
     else
@@ -976,7 +1071,7 @@ begin
 
   if v_total_pot = 0 then
     update public.events
-    set status = 'resolved', result = p_result, resolved_at = now()
+    set status = 'resolved', winner_option_id = p_winner_option_id, resolved_at = now()
     where id = p_event_id;
 
     return jsonb_build_object(
@@ -1001,7 +1096,18 @@ begin
       and status = 'pending'
     for update
   loop
-    if v_bet.choice = p_result then
+    v_is_winner := (
+      (v_bet.option_id = p_winner_option_id and v_bet.choice = 'sim')
+      or
+      (v_bet.option_id <> p_winner_option_id and v_bet.choice = 'nao')
+    );
+
+    select eo.label
+    into v_option_label
+    from public.event_options eo
+    where eo.id = v_bet.option_id;
+
+    if v_is_winner then
       if v_winners_total > 0 then
         v_payout := floor(v_net_pot::numeric * (v_bet.amount::numeric / v_winners_total::numeric));
       else
@@ -1025,7 +1131,12 @@ begin
         'bet_won',
         v_payout,
         'coin',
-        format('Acertou e ganhou %s Q$ no evento "%s"', v_payout, v_event.title),
+        format(
+          'Acertou e ganhou %s Q$ no evento "%s" (opcao: %s)',
+          v_payout,
+          v_event.title,
+          coalesce(v_option_label, 'N/D')
+        ),
         p_event_id
       );
     else
@@ -1040,11 +1151,12 @@ begin
   end loop;
 
   update public.events
-  set status = 'resolved', result = p_result, resolved_at = now()
+  set status = 'resolved', winner_option_id = p_winner_option_id, resolved_at = now()
   where id = p_event_id;
 
   return jsonb_build_object(
     'resolved', true,
+    'winnerOptionId', p_winner_option_id,
     'winnersCount', v_winners_count,
     'losersCount', v_losers_count,
     'totalPot', v_total_pot,
@@ -1319,9 +1431,9 @@ begin
 end;
 $$;
 
-grant execute on function public.place_bet(uuid, public.bet_choice, bigint) to authenticated;
+grant execute on function public.place_bet(uuid, uuid, public.bet_choice, bigint) to authenticated;
 grant execute on function public.record_sponsored_impression(uuid) to authenticated;
-grant execute on function public.resolve_event(uuid, public.bet_choice) to authenticated;
+grant execute on function public.resolve_event(uuid, uuid) to authenticated;
 grant execute on function public.redeem_shop_item(uuid) to authenticated;
 grant execute on function public.purchase_gold_package(text, text) to authenticated;
 grant execute on function public.claim_ad_reward() to authenticated;
@@ -1334,3 +1446,10 @@ grant execute on function public.join_group_by_code(text) to authenticated;
 - `users` nao salva telefone; perfil publico fica em `public.users`.
 - Campos economicos (`coins`, `gold_coins`, `xp`, `level`, `streak`) estao protegidos por trigger. Atualize esses campos via backend (Edge Functions / RPC com service role).
 - Para transformar um usuario em admin, adicione no `app_metadata` do usuario: `{ "role": "admin" }`.
+- Estrutura de eventos agora suporta multiplas alternativas por evento via `public.event_options`; o evento resolvido guarda `winner_option_id`.
+
+## Migration SQL (banco existente)
+
+Para migrar um banco ja em producao (modelo antigo `result` por evento), execute:
+
+- [`supabase/migrations/20260308_multi_option_events.sql`](C:\Users\Jairo Rodrigues\WebstormProjects\achoq\supabase\migrations\20260308_multi_option_events.sql)

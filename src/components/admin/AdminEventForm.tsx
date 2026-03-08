@@ -33,6 +33,7 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
     sponsorLogoURL: "",
     seasonId: "",
   });
+  const [options, setOptions] = useState<string[]>(["", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -41,6 +42,23 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
     setForm((prev) => ({ ...prev, [key]: val }));
     setError("");
     setSuccess(false);
+  }
+
+  function setOption(index: number, value: string) {
+    setOptions((prev) => prev.map((item, idx) => (idx === index ? value : item)));
+    setError("");
+    setSuccess(false);
+  }
+
+  function addOption() {
+    setOptions((prev) => [...prev, ""]);
+  }
+
+  function removeOption(index: number) {
+    setOptions((prev) => {
+      if (prev.length <= 2) return prev;
+      return prev.filter((_, idx) => idx !== index);
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -54,10 +72,21 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
       setError("Informe o nome do patrocinador para eventos patrocinados.");
       return;
     }
+    const cleanedOptions = options.map((option) => option.trim()).filter(Boolean);
+    if (cleanedOptions.length < 2) {
+      setError("Informe pelo menos 2 alternativas para o evento.");
+      return;
+    }
+    if (new Set(cleanedOptions.map((option) => option.toLowerCase())).size !== cleanedOptions.length) {
+      setError("As alternativas nao podem ser repetidas.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const { error: insertError } = await supabase.from("events").insert({
+      const { data: eventData, error: insertError } = await supabase
+        .from("events")
+        .insert({
         title: form.title.trim(),
         description: form.description.trim(),
         category: form.category,
@@ -72,10 +101,32 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
         nao_count: 0,
         total_bets: 0,
         total_coins: 0,
+        winner_option_id: null,
         created_by: firebaseUser.uid,
         created_at: new Date().toISOString(),
-      });
+        })
+        .select("id")
+        .single();
+
       if (insertError) throw new Error(insertError.message);
+      if (!eventData?.id) throw new Error("Nao foi possivel obter o ID do evento.");
+
+      const { error: optionsError } = await supabase.from("event_options").insert(
+        cleanedOptions.map((label, idx) => ({
+          event_id: eventData.id,
+          label,
+          sort_order: idx,
+          sim_pool: 0,
+          nao_pool: 0,
+          total_bets: 0,
+          active: true,
+        }))
+      );
+
+      if (optionsError) {
+        await supabase.from("events").delete().eq("id", eventData.id);
+        throw new Error(optionsError.message);
+      }
 
       setForm({
         title: "",
@@ -88,6 +139,7 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
         sponsorLogoURL: "",
         seasonId: "",
       });
+      setOptions(["", ""]);
       setSuccess(true);
       onCreated?.();
     } catch (err: unknown) {
@@ -206,6 +258,41 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
               placeholder="ex: copa-2026"
               className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 font-semibold outline-none focus:border-primary"
             />
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <label className="block text-sm font-bold text-gray-600">Alternativas do evento *</label>
+            <button
+              type="button"
+              onClick={addOption}
+              className="text-xs font-extrabold text-primary"
+            >
+              + Adicionar
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {options.map((option, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={option}
+                  onChange={(e) => setOption(idx, e.target.value)}
+                  placeholder={`Alternativa ${idx + 1} (ex: Participante ${idx + 1})`}
+                  className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 font-semibold outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeOption(idx)}
+                  disabled={options.length <= 2}
+                  className="text-xs font-bold text-nao disabled:text-gray-300 disabled:cursor-not-allowed"
+                >
+                  Remover
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 

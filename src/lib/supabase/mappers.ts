@@ -1,6 +1,7 @@
 import type {
   Bet,
   Event,
+  EventOption,
   RankingEntry,
   Season,
   Transaction,
@@ -25,6 +26,7 @@ type BetRow = {
   id: string;
   user_id: string;
   event_id: string;
+  option_id: string;
   choice: "sim" | "nao";
   amount: number;
   status: "pending" | "won" | "lost" | "refunded";
@@ -61,11 +63,22 @@ type EventRow = {
   sponsor_participations: number | null;
   featured: boolean | null;
   season_id: string | null;
-  result: Event["result"] | null;
+  winner_option_id: string | null;
   created_by: string;
   created_at: string;
   closes_at: string;
   resolved_at: string | null;
+};
+
+type EventOptionRow = {
+  id: string;
+  event_id: string;
+  label: string;
+  sort_order: number | null;
+  sim_pool: number | null;
+  nao_pool: number | null;
+  total_bets: number | null;
+  active: boolean | null;
 };
 
 type SeasonRow = {
@@ -106,6 +119,7 @@ export function mapBetRow(row: BetRow): Bet {
     id: row.id,
     userId: row.user_id,
     eventId: row.event_id,
+    optionId: row.option_id,
     choice: row.choice,
     amount: Number(row.amount ?? 0),
     status: row.status,
@@ -145,13 +159,26 @@ export function mapEventRow(row: EventRow): Event {
     sponsorImpressions: Number(row.sponsor_impressions ?? 0),
     sponsorParticipations: Number(row.sponsor_participations ?? 0),
     seasonId: row.season_id ?? undefined,
-    result: row.result ?? undefined,
+    winnerOptionId: row.winner_option_id ?? undefined,
     createdBy: row.created_by,
     createdAt: row.created_at,
     closesAt: row.closes_at,
     resolvedAt: row.resolved_at ?? undefined,
     featured: Boolean(row.featured),
   } as Event & { featured?: boolean };
+}
+
+export function mapEventOptionRow(row: EventOptionRow): EventOption {
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    label: row.label,
+    sortOrder: Number(row.sort_order ?? 0),
+    simPool: Number(row.sim_pool ?? 0),
+    naoPool: Number(row.nao_pool ?? 0),
+    totalBets: Number(row.total_bets ?? 0),
+    active: Boolean(row.active ?? true),
+  };
 }
 
 export function mapSeasonRow(row: SeasonRow): Season {

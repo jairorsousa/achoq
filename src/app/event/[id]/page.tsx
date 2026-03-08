@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase/config";
-import { mapEventRow } from "@/lib/supabase/mappers";
+import { mapEventOptionRow, mapEventRow } from "@/lib/supabase/mappers";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { useUserStore } from "@/lib/stores/userStore";
 import { useToast } from "@/lib/stores/toastStore";
@@ -16,7 +16,7 @@ import Modal from "@/components/ui/Modal";
 import Card from "@/components/ui/Card";
 import Skeleton from "@/components/ui/Skeleton";
 import BetAmountInput from "@/components/events/BetAmountInput";
-import type { Event, BetChoice } from "@/lib/types";
+import type { Event, BetChoice, EventOption } from "@/lib/types";
 import { timeRemaining, formatCompact, formatCoins, calcMultiplier } from "@/lib/utils/format";
 
 function CoinBurst() {
@@ -56,10 +56,12 @@ export default function EventPage({
   useUser();
 
   const [event, setEvent] = useState<Event | null>(null);
+  const [options, setOptions] = useState<EventOption[]>([]);
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
+  const [userBetOptionIds, setUserBetOptionIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [choice, setChoice] = useState<BetChoice | null>(null);
   const [betAmount, setBetAmount] = useState(50);
-  const [alreadyBet, setAlreadyBet] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [showBurst, setShowBurst] = useState(false);
@@ -67,36 +69,54 @@ export default function EventPage({
   useEffect(() => {
     let mounted = true;
 
-    const loadEvent = async () => {
-      const { data, error } = await supabase.from("events").select("*").eq("id", id).maybeSingle();
+    const loadEventAndOptions = async () => {
+      setLoading(true);
+      const [{ data: eventData, error: eventError }, { data: optionsData, error: optionsError }] =
+        await Promise.all([
+          supabase.from("events").select("*").eq("id", id).maybeSingle(),
+          supabase.from("event_options").select("*").eq("event_id", id).order("sort_order", { ascending: true }),
+        ]);
 
       if (!mounted) return;
-      if (error || !data) {
+      if (eventError || !eventData) {
         setEvent(null);
+        setOptions([]);
         setLoading(false);
         return;
       }
 
-      setEvent(mapEventRow(data as Parameters<typeof mapEventRow>[0]));
+      setEvent(mapEventRow(eventData as Parameters<typeof mapEventRow>[0]));
+      if (optionsError) {
+        setOptions([]);
+      } else {
+        const mappedOptions = (optionsData ?? []).map((row) =>
+          mapEventOptionRow(row as Parameters<typeof mapEventOptionRow>[0])
+        );
+        setOptions(mappedOptions);
+        setSelectedOptionId((prev) => {
+          if (prev && mappedOptions.some((option) => option.id === prev)) return prev;
+          return mappedOptions.find((option) => option.active)?.id ?? mappedOptions[0]?.id ?? null;
+        });
+      }
       setLoading(false);
     };
 
-    void loadEvent();
+    void loadEventAndOptions();
 
     const eventChannel = supabase
       .channel(`event_${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "events", filter: `id=eq.${id}` }, () => {
+        void loadEventAndOptions();
+      })
+      .subscribe();
+
+    const optionsChannel = supabase
+      .channel(`event_options_${id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "events", filter: `id=eq.${id}` },
-        (payload) => {
-          if (payload.eventType === "DELETE") {
-            setEvent(null);
-            return;
-          }
-          const row = payload.new as Parameters<typeof mapEventRow>[0] | undefined;
-          if (row) {
-            setEvent(mapEventRow(row));
-          }
+        { event: "*", schema: "public", table: "event_options", filter: `event_id=eq.${id}` },
+        () => {
+          void loadEventAndOptions();
         }
       )
       .subscribe();
@@ -104,6 +124,7 @@ export default function EventPage({
     return () => {
       mounted = false;
       void supabase.removeChannel(eventChannel);
+      void supabase.removeChannel(optionsChannel);
     };
   }, [id]);
 
@@ -115,13 +136,13 @@ export default function EventPage({
     const checkBet = async () => {
       const { data } = await supabase
         .from("bets")
-        .select("id")
+        .select("option_id")
         .eq("user_id", firebaseUser.uid)
         .eq("event_id", id)
-        .limit(1);
+        .limit(100);
 
       if (!mounted) return;
-      setAlreadyBet(Boolean(data && data.length > 0));
+      setUserBetOptionIds((data ?? []).map((row) => String(row.option_id)));
     };
 
     void checkBet();
@@ -138,12 +159,14 @@ export default function EventPage({
   }, [profile]);
 
   async function handleConfirmBet() {
-    if (!firebaseUser || !event || !choice || !profile) return;
+    const selectedOption = options.find((option) => option.id === selectedOptionId);
+    if (!firebaseUser || !event || !choice || !profile || !selectedOption) return;
     setPlacing(true);
 
     try {
       const { error } = await supabase.rpc("place_bet", {
         p_event_id: id,
+        p_option_id: selectedOption.id,
         p_choice: choice,
         p_amount: betAmount,
       });
@@ -152,11 +175,16 @@ export default function EventPage({
         throw new Error(error.message);
       }
 
-      setAlreadyBet(true);
+      setUserBetOptionIds((prev) =>
+        prev.includes(selectedOption.id) ? prev : [...prev, selectedOption.id]
+      );
       setConfirmOpen(false);
       setShowBurst(true);
       setTimeout(() => setShowBurst(false), 1000);
-      toast(`Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${choice.toUpperCase()}`, "success");
+      toast(
+        `Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${selectedOption.label} (${choice.toUpperCase()})`,
+        "success"
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Tente novamente.";
       toast(msg, "error");
@@ -191,6 +219,14 @@ export default function EventPage({
   const naoPercent = 100 - simPercent;
   const isClosed = event.status !== "open";
   const coins = profile?.coins ?? 0;
+  const selectedOption = options.find((option) => option.id === selectedOptionId) ?? null;
+  const winnerOption = event.winnerOptionId
+    ? options.find((option) => option.id === event.winnerOptionId) ?? null
+    : null;
+  const hasOptions = options.length > 0;
+  const alreadyBetOnSelected = Boolean(
+    selectedOption && userBetOptionIds.includes(selectedOption.id)
+  );
 
   return (
     <>
@@ -232,39 +268,112 @@ export default function EventPage({
           </div>
         </Card>
 
-        {isClosed ? (
+        <Card>
+          <div className="space-y-3">
+            <p className="text-sm font-bold text-gray-700">Alternativas</p>
+            <div className="space-y-2">
+              {options.map((option) => {
+                const optionTotal = option.simPool + option.naoPool || 1;
+                const optionSimPercent = Math.round((option.simPool / optionTotal) * 100);
+                const optionNaoPercent = 100 - optionSimPercent;
+                const isSelected = selectedOptionId === option.id;
+                const isWinner = event.winnerOptionId === option.id;
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={!option.active || isClosed}
+                    onClick={() => {
+                      setSelectedOptionId(option.id);
+                      setChoice(null);
+                    }}
+                    className={[
+                      "w-full text-left rounded-2xl border px-3 py-3 transition-colors",
+                      isSelected ? "border-primary bg-primary/5" : "border-gray-200 bg-white",
+                      !option.active || isClosed ? "opacity-80" : "",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-bold text-sm text-gray-900">{option.label}</p>
+                      {isWinner && (
+                        <span className="text-[11px] font-extrabold rounded-full bg-sim/15 text-sim px-2 py-1">
+                          VENCEDOR
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2">
+                      <ProgressBar simPercent={optionSimPercent} naoPercent={optionNaoPercent} />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
+                      <span>SIM {optionSimPercent}%</span>
+                      <span>NAO {optionNaoPercent}%</span>
+                      <span>{formatCompact(option.totalBets)} apostas</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {!hasOptions && (
+              <p className="text-sm text-gray-400">Este evento ainda nao possui alternativas cadastradas.</p>
+            )}
+          </div>
+        </Card>
+
+        {!hasOptions ? (
+          <Card>
+            <p className="text-center text-gray-500 text-sm">Aguardando alternativas deste evento.</p>
+          </Card>
+        ) : isClosed ? (
           <Card>
             <div className="text-center py-4">
               <div className="text-4xl mb-2">fechado</div>
               <p className="font-bold text-gray-600">Apostas encerradas</p>
-              {event.result && <p className="text-sm text-gray-400 mt-1">Resultado: {event.result.toUpperCase()}</p>}
-            </div>
-          </Card>
-        ) : alreadyBet ? (
-          <Card>
-            <div className="text-center py-4">
-              <p className="font-bold text-gray-700">Voce ja apostou neste evento.</p>
-              <p className="text-sm text-gray-400 mt-1">Aguarde o resultado.</p>
+              {winnerOption && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Vencedor: <span className="font-bold text-gray-700">{winnerOption.label}</span>
+                </p>
+              )}
             </div>
           </Card>
         ) : !profile ? (
           <Card>
             <p className="text-center text-gray-500 text-sm">Faca login para apostar.</p>
           </Card>
+        ) : selectedOption && alreadyBetOnSelected ? (
+          <Card>
+            <div className="text-center py-4">
+              <p className="font-bold text-gray-700">Voce ja apostou nesta alternativa.</p>
+              <p className="text-sm text-gray-400 mt-1">Escolha outra alternativa para apostar novamente.</p>
+            </div>
+          </Card>
         ) : (
           <Card>
             <div className="space-y-4">
               <p className="font-bold text-gray-700">Fazer previsao</p>
 
+              {selectedOption ? (
+                <div className="rounded-2xl bg-gray-50 px-4 py-3">
+                  <p className="text-xs text-gray-500">Alternativa selecionada</p>
+                  <p className="font-bold text-gray-900 text-sm">{selectedOption.label}</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-gray-50 px-4 py-3">
+                  <p className="text-sm text-gray-500">Selecione uma alternativa acima para continuar.</p>
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setChoice("sim")}
+                  disabled={!selectedOption}
                   className={[
                     "flex-1 py-4 rounded-3xl font-extrabold text-lg border-2 transition-all",
                     choice === "sim"
                       ? "bg-sim text-white border-sim shadow-btn-sim translate-y-[6px] shadow-none"
                       : "bg-sim/10 text-sim border-sim/30 shadow-btn-sim",
+                    !selectedOption ? "opacity-50 cursor-not-allowed" : "",
                   ].join(" ")}
                 >
                   achoQ SIM
@@ -272,11 +381,13 @@ export default function EventPage({
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setChoice("nao")}
+                  disabled={!selectedOption}
                   className={[
                     "flex-1 py-4 rounded-3xl font-extrabold text-lg border-2 transition-all",
                     choice === "nao"
                       ? "bg-nao text-white border-nao shadow-btn-nao translate-y-[6px] shadow-none"
                       : "bg-nao/10 text-nao border-nao/30 shadow-btn-nao",
+                    !selectedOption ? "opacity-50 cursor-not-allowed" : "",
                   ].join(" ")}
                 >
                   achoQ NAO
@@ -291,7 +402,7 @@ export default function EventPage({
                       variant={choice === "sim" ? "sim" : "nao"}
                       size="lg"
                       className="w-full mt-4"
-                      disabled={coins < 10}
+                      disabled={coins < 10 || !selectedOption}
                       onClick={() => setConfirmOpen(true)}
                     >
                       Confirmar previsao
@@ -303,7 +414,13 @@ export default function EventPage({
                 )}
               </AnimatePresence>
 
-              {!choice && <p className="text-center text-sm text-gray-400">Selecione SIM ou NAO para apostar</p>}
+              {!choice && (
+                <p className="text-center text-sm text-gray-400">
+                  {selectedOption
+                    ? "Selecione SIM ou NAO para apostar"
+                    : "Selecione uma alternativa primeiro"}
+                </p>
+              )}
             </div>
           </Card>
         )}
@@ -315,6 +432,12 @@ export default function EventPage({
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Evento</span>
               <span className="font-semibold text-gray-800 max-w-[60%] text-right line-clamp-1">{event.title}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Alternativa</span>
+              <span className="font-semibold text-gray-800 max-w-[60%] text-right line-clamp-1">
+                {selectedOption?.label ?? "-"}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Sua previsao</span>
@@ -336,7 +459,13 @@ export default function EventPage({
             <Button3D variant="ghost" className="flex-1" onClick={() => setConfirmOpen(false)}>
               Cancelar
             </Button3D>
-            <Button3D variant={choice === "sim" ? "sim" : "nao"} className="flex-1" loading={placing} onClick={handleConfirmBet}>
+            <Button3D
+              variant={choice === "sim" ? "sim" : "nao"}
+              className="flex-1"
+              loading={placing}
+              disabled={!selectedOption || !choice}
+              onClick={handleConfirmBet}
+            >
               Apostar
             </Button3D>
           </div>

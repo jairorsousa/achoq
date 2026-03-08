@@ -55,3 +55,9 @@ update auth.users
 set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb
 where email = 'admin@seu-dominio.com';
 ```
+
+### Multi-option events migration
+
+To support events with multiple alternatives (example: BBB winner markets), run:
+
+- `supabase/migrations/20260308_multi_option_events.sql`
