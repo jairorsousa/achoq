@@ -21,7 +21,7 @@ interface AdminEventFormProps {
 }
 
 export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -63,7 +63,7 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!firebaseUser) return;
+    if (!user) return;
     if (!form.title.trim() || !form.closesAt) {
       setError("Titulo e data de encerramento sao obrigatorios.");
       return;
@@ -102,7 +102,7 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
         total_bets: 0,
         total_coins: 0,
         winner_option_id: null,
-        created_by: firebaseUser.uid,
+        created_by: user.uid,
         created_at: new Date().toISOString(),
         })
         .select("id")

@@ -49,7 +49,7 @@ export default function EventPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
   const profile = useUserStore((s) => s.profile);
   const { toast } = useToast();
 
@@ -129,7 +129,7 @@ export default function EventPage({
   }, [id]);
 
   useEffect(() => {
-    if (!firebaseUser || !id) return;
+    if (!user || !id) return;
 
     let mounted = true;
 
@@ -137,7 +137,7 @@ export default function EventPage({
       const { data } = await supabase
         .from("bets")
         .select("option_id")
-        .eq("user_id", firebaseUser.uid)
+        .eq("user_id", user.uid)
         .eq("event_id", id)
         .limit(100);
 
@@ -150,7 +150,7 @@ export default function EventPage({
     return () => {
       mounted = false;
     };
-  }, [firebaseUser, id]);
+  }, [user, id]);
 
   useEffect(() => {
     if (profile) {
@@ -160,7 +160,7 @@ export default function EventPage({
 
   async function handleConfirmBet() {
     const selectedOption = options.find((option) => option.id === selectedOptionId);
-    if (!firebaseUser || !event || !choice || !profile || !selectedOption) return;
+    if (!user || !event || !choice || !profile || !selectedOption) return;
     setPlacing(true);
 
     try {

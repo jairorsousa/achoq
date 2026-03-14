@@ -7,11 +7,11 @@ import { useAuthStore } from "@/lib/stores/authStore";
 import { useUserStore } from "@/lib/stores/userStore";
 
 export function useUser() {
-  const firebaseUser = useAuthStore((s) => s.firebaseUser);
+  const authUser = useAuthStore((s) => s.user);
   const setProfile = useUserStore((s) => s.setProfile);
 
   useEffect(() => {
-    if (!firebaseUser) {
+    if (!authUser) {
       setProfile(null);
       return;
     }
@@ -22,7 +22,7 @@ export function useUser() {
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .eq("id", firebaseUser.uid)
+        .eq("id", authUser.uid)
         .single();
 
       if (!mounted) return;
@@ -34,7 +34,7 @@ export function useUser() {
       setProfile(
         mapUserRow(
           data as Parameters<typeof mapUserRow>[0],
-          firebaseUser.email
+          authUser.email
         )
       );
     };
@@ -42,14 +42,14 @@ export function useUser() {
     void loadProfile();
 
     const channel = supabase
-      .channel(`user_profile_${firebaseUser.uid}`)
+      .channel(`user_profile_${authUser.uid}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "users",
-          filter: `id=eq.${firebaseUser.uid}`,
+          filter: `id=eq.${authUser.uid}`,
         },
         (payload) => {
           if (payload.eventType === "DELETE") {
@@ -59,7 +59,7 @@ export function useUser() {
 
           const row = payload.new as Parameters<typeof mapUserRow>[0] | undefined;
           if (!row) return;
-          setProfile(mapUserRow(row, firebaseUser.email));
+          setProfile(mapUserRow(row, authUser.email));
         }
       )
       .subscribe();
@@ -68,5 +68,5 @@ export function useUser() {
       mounted = false;
       void supabase.removeChannel(channel);
     };
-  }, [firebaseUser, setProfile]);
+  }, [authUser, setProfile]);
 }

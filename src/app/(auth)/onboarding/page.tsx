@@ -11,7 +11,7 @@ const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
   const [step, setStep] = useState<"username" | "avatar">("username");
   const [username, setUsername] = useState("");
   const [avatar, setAvatar] = useState(AVATARS[0].id);
@@ -19,10 +19,10 @@ export default function OnboardingPage() {
   const [usernameError, setUsernameError] = useState("");
 
   useEffect(() => {
-    if (!firebaseUser) {
+    if (!user) {
       router.replace("/login");
     }
-  }, [firebaseUser, router]);
+  }, [user, router]);
 
   function handleUsernameNext() {
     if (!USERNAME_REGEX.test(username)) {
@@ -33,7 +33,7 @@ export default function OnboardingPage() {
   }
 
   async function handleFinish() {
-    if (!firebaseUser) return;
+    if (!user) return;
     setLoading(true);
 
     try {
@@ -46,7 +46,7 @@ export default function OnboardingPage() {
         .eq("username", normalizedUsername)
         .maybeSingle();
 
-      if (existingUsername && existingUsername.user_id !== firebaseUser.uid) {
+      if (existingUsername && existingUsername.user_id !== user.uid) {
         setUsernameError("Este username ja esta em uso. Tente outro.");
         setStep("username");
         setLoading(false);
@@ -61,7 +61,7 @@ export default function OnboardingPage() {
           photo_url: avatar,
           last_active_date: today,
         })
-        .eq("id", firebaseUser.uid);
+        .eq("id", user.uid);
 
       if (userError) {
         setUsernameError(userError.message);
@@ -74,7 +74,7 @@ export default function OnboardingPage() {
         .upsert(
           {
             username: normalizedUsername,
-            user_id: firebaseUser.uid,
+            user_id: user.uid,
           },
           { onConflict: "username" }
         );
@@ -106,7 +106,7 @@ export default function OnboardingPage() {
     }
   }
 
-  if (!firebaseUser) return null;
+  if (!user) return null;
 
   return (
     <div className="w-full max-w-sm mx-auto flex flex-col items-center gap-8">

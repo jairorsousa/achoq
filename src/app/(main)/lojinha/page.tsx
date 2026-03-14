@@ -62,7 +62,7 @@ function mapShopItem(row: ShopItemRow): ShopItem {
 }
 
 export default function LojinhaPage() {
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
   const profile = useUserStore((s) => s.profile);
   const { toast } = useToast();
 
@@ -111,7 +111,7 @@ export default function LojinhaPage() {
   const filtered = category === "all" ? items : items.filter((i) => i.category === category);
 
   async function handleConfirmRedeem() {
-    if (!confirmItem || !firebaseUser) return;
+    if (!confirmItem || !user) return;
     setRedeeming(true);
     try {
       const { error } = await supabase.rpc("redeem_shop_item", {
@@ -129,7 +129,7 @@ export default function LojinhaPage() {
   }
 
   async function handleBuyGold(pkg: GoldPackage) {
-    if (!firebaseUser) return;
+    if (!user) return;
     setBuyingGold(pkg.id);
     try {
       const { error } = await supabase.rpc("purchase_gold_package", {

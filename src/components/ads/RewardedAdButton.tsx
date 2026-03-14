@@ -10,13 +10,13 @@ const AD_REWARD = 50;
 const DAILY_LIMIT = 3;
 
 export default function RewardedAdButton() {
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [watching, setWatching] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  if (!firebaseUser) return null;
+  if (!user) return null;
 
   async function handleWatchAd() {
     setWatching(true);

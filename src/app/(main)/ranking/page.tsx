@@ -40,7 +40,7 @@ function buildLiveRanking(users: UserRankRow[]): RankingEntry[] {
 }
 
 export default function RankingPage() {
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
   const [tab, setTab] = useState<Tab>("geral");
   const [entries, setEntries] = useState<RankingEntry[]>([]);
   const [seasonEntries, setSeasonEntries] = useState<RankingEntry[]>([]);
@@ -185,7 +185,7 @@ export default function RankingPage() {
   const currentEntries = tab === "temporada" ? seasonEntries : entries;
   const top3 = currentEntries.slice(0, 3);
   const rest = currentEntries.slice(3);
-  const myRank = currentEntries.find((e) => e.userId === firebaseUser?.uid);
+  const myRank = currentEntries.find((e) => e.userId === user?.uid);
 
   return (
     <div className="py-4 space-y-4">
@@ -227,7 +227,7 @@ export default function RankingPage() {
             <Podium top3={top3} />
             <div className="space-y-2">
               {rest.map((entry) => (
-                <LeaderboardRow key={entry.userId} entry={entry} isCurrentUser={entry.userId === firebaseUser?.uid} />
+                <LeaderboardRow key={entry.userId} entry={entry} isCurrentUser={entry.userId === user?.uid} />
               ))}
             </div>
             {myRank && (

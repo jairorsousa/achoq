@@ -13,13 +13,13 @@ function generateCode(length = 6): string {
 
 export default function CriarGrupoPage() {
   const router = useRouter();
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function handleCreate() {
-    if (!firebaseUser) return;
+    if (!user) return;
     if (name.trim().length < 3) {
       setError("Nome deve ter pelo menos 3 caracteres.");
       return;
@@ -38,7 +38,7 @@ export default function CriarGrupoPage() {
           .insert({
             name: name.trim(),
             invite_code: inviteCode,
-            owner_id: firebaseUser.uid,
+            owner_id: user.uid,
           })
           .select("id")
           .single();
@@ -56,7 +56,7 @@ export default function CriarGrupoPage() {
         const groupId = groupData.id as string;
         const { error: memberError } = await supabase.from("group_members").insert({
           group_id: groupId,
-          user_id: firebaseUser.uid,
+          user_id: user.uid,
         });
 
         if (memberError) {

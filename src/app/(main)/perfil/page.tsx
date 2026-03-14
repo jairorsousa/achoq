@@ -26,7 +26,7 @@ function xpForNextLevel(level: number, currentXP: number): { current: number; ma
 
 export default function PerfilPage() {
   const router = useRouter();
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
   const profile = useUserStore((s) => s.profile);
 
   const [bets, setBets] = useState<Bet[]>([]);
@@ -35,7 +35,7 @@ export default function PerfilPage() {
   const [tab, setTab] = useState<"apostas" | "transacoes">("apostas");
 
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!user) return;
 
     let mounted = true;
 
@@ -47,13 +47,13 @@ export default function PerfilPage() {
         supabase
           .from("bets")
           .select("*")
-          .eq("user_id", firebaseUser.uid)
+          .eq("user_id", user.uid)
           .order("created_at", { ascending: false })
           .limit(20),
         supabase
           .from("transactions")
           .select("*")
-          .eq("user_id", firebaseUser.uid)
+          .eq("user_id", user.uid)
           .order("created_at", { ascending: false })
           .limit(30),
       ]);
@@ -82,14 +82,14 @@ export default function PerfilPage() {
     void loadHistory();
 
     const betsChannel = supabase
-      .channel(`perfil_bets_${firebaseUser.uid}`)
+      .channel(`perfil_bets_${user.uid}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "bets",
-          filter: `user_id=eq.${firebaseUser.uid}`,
+          filter: `user_id=eq.${user.uid}`,
         },
         () => {
           void loadHistory();
@@ -98,14 +98,14 @@ export default function PerfilPage() {
       .subscribe();
 
     const txChannel = supabase
-      .channel(`perfil_tx_${firebaseUser.uid}`)
+      .channel(`perfil_tx_${user.uid}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "transactions",
-          filter: `user_id=eq.${firebaseUser.uid}`,
+          filter: `user_id=eq.${user.uid}`,
         },
         () => {
           void loadHistory();
@@ -118,7 +118,7 @@ export default function PerfilPage() {
       void supabase.removeChannel(betsChannel);
       void supabase.removeChannel(txChannel);
     };
-  }, [firebaseUser]);
+  }, [user]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -139,7 +139,7 @@ export default function PerfilPage() {
   const winRate = totalBets > 0 ? Math.round((wonBets / totalBets) * 100) : 0;
   const { current: xpCurrent, max: xpMax } = xpForNextLevel(profile.level, profile.xp);
   const isAdmin =
-    firebaseUser?.permissionLevel === "admin" || Boolean(firebaseUser?.isAdmin);
+    user?.permissionLevel === "admin" || Boolean(user?.isAdmin);
 
   const betStatusColor: Record<string, string> = {
     won: "text-sim font-bold",

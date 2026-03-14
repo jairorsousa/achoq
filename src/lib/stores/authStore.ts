@@ -8,19 +8,19 @@ export interface AppAuthUser {
 }
 
 interface AuthStore {
-  firebaseUser: AppAuthUser | null; // kept name for compatibility during migration
+  user: AppAuthUser | null;
   isLoading: boolean;
   hasProfile: boolean | null;
-  setFirebaseUser: (user: AppAuthUser | null) => void;
+  setUser: (user: AppAuthUser | null) => void;
   setIsLoading: (loading: boolean) => void;
   setHasProfile: (has: boolean | null) => void;
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
-  firebaseUser: null,
+  user: null,
   isLoading: true,
   hasProfile: null,
-  setFirebaseUser: (user) => set({ firebaseUser: user }),
+  setUser: (user) => set({ user }),
   setIsLoading: (loading) => set({ isLoading: loading }),
   setHasProfile: (has) => set({ hasProfile: has }),
 }));

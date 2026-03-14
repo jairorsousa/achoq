@@ -6,22 +6,22 @@ import { useAuthStore } from "@/lib/stores/authStore";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { firebaseUser, isLoading } = useAuthStore();
+  const { user, isLoading } = useAuthStore();
   const isAdmin =
-    firebaseUser?.permissionLevel === "admin" || Boolean(firebaseUser?.isAdmin);
+    user?.permissionLevel === "admin" || Boolean(user?.isAdmin);
 
   useEffect(() => {
     if (isLoading) return;
-    if (!firebaseUser) {
+    if (!user) {
       router.replace("/login");
       return;
     }
     if (!isAdmin) {
       router.replace("/home");
     }
-  }, [firebaseUser, isAdmin, isLoading, router]);
+  }, [user, isAdmin, isLoading, router]);
 
-  if (isLoading || !firebaseUser || !isAdmin) {
+  if (isLoading || !user || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

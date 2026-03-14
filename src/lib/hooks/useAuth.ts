@@ -26,7 +26,7 @@ function clearCookie() {
 }
 
 export function useAuth() {
-  const { setFirebaseUser, setIsLoading, setHasProfile } = useAuthStore();
+  const { setUser, setIsLoading, setHasProfile } = useAuthStore();
   const { setProfile } = useUserStore();
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export function useAuth() {
 
         setCookie("1");
         setRoleCookie(isAdmin ? "admin" : "user");
-        setFirebaseUser({
+        setUser({
           uid: user.id,
           email: user.email ?? null,
           permissionLevel: isAdmin ? "admin" : "user",
@@ -48,7 +48,7 @@ export function useAuth() {
         setHasProfile(hasProfile);
       } else {
         clearCookie();
-        setFirebaseUser(null);
+        setUser(null);
         setProfile(null);
         setHasProfile(null);
       }
@@ -69,5 +69,5 @@ export function useAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, [setFirebaseUser, setIsLoading, setHasProfile, setProfile]);
+  }, [setUser, setIsLoading, setHasProfile, setProfile]);
 }

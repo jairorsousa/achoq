@@ -38,7 +38,7 @@ export default function GroupPage({
 }) {
   const { groupId } = use(params);
   const router = useRouter();
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
 
   const [group, setGroup] = useState<Group | null>(null);
   const [entries, setEntries] = useState<RankingEntry[]>([]);
@@ -223,7 +223,7 @@ export default function GroupPage({
           <Podium top3={top3} />
           <div className="space-y-2">
             {rest.map((entry) => (
-              <LeaderboardRow key={entry.userId} entry={entry} isCurrentUser={entry.userId === firebaseUser?.uid} />
+              <LeaderboardRow key={entry.userId} entry={entry} isCurrentUser={entry.userId === user?.uid} />
             ))}
           </div>
         </>

@@ -8,13 +8,13 @@ import Button3D from "@/components/ui/Button3D";
 
 export default function EntrarGrupoPage() {
   const router = useRouter();
-  const { firebaseUser } = useAuthStore();
+  const { user } = useAuthStore();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function handleJoin() {
-    if (!firebaseUser) return;
+    if (!user) return;
     if (code.trim().length < 4) {
       setError("Codigo invalido.");
       return;
