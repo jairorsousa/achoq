@@ -30,11 +30,14 @@ export interface EventOption {
   active: boolean;
 }
 
+export type EventType = "binary" | "multiple";
+
 export interface Event {
   id: string;
   title: string;
   description: string;
   category: EventCategory;
+  eventType: EventType;
   imageURL?: string;
   status: EventStatus;
   simCount: number;
@@ -50,6 +53,7 @@ export interface Event {
   seasonId?: string;
   seasonName?: string;
   winnerOptionId?: string;
+  winnerChoice?: BetChoice;
   options?: EventOption[];
   createdBy: string;
   createdAt: string;

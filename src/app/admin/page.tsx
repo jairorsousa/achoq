@@ -104,6 +104,7 @@ export default function AdminPage() {
     event: Event;
     options: EventOption[];
     winnerOptionId: string | null;
+    winnerChoice: "sim" | "nao";
   } | null>(null);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState("");
@@ -320,10 +321,13 @@ export default function AdminPage() {
         throw new Error("Evento sem alternativas cadastradas.");
       }
 
+      const isBinary = event.eventType === "binary" || options.length === 1;
+
       setResolveModal({
         event,
         options,
-        winnerOptionId: options[0]?.id ?? null,
+        winnerOptionId: isBinary ? (options[0]?.id ?? null) : (options[0]?.id ?? null),
+        winnerChoice: "sim",
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro ao carregar alternativas.";
@@ -339,6 +343,7 @@ export default function AdminPage() {
       const { error } = await supabase.rpc("resolve_event", {
         p_event_id: resolveModal.event.id,
         p_winner_option_id: resolveModal.winnerOptionId,
+        p_winner_choice: resolveModal.winnerChoice,
       });
       if (error) {
         throw new Error(error.message);
@@ -881,50 +886,88 @@ export default function AdminPage() {
         }}
         title="Resolver evento"
       >
-        {resolveModal && (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Definir alternativa vencedora de: <strong>{resolveModal.event.title}</strong>
-            </p>
-            <div className="space-y-2">
-              {resolveModal.options.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setResolveModal((prev) => (prev ? { ...prev, winnerOptionId: option.id } : prev))}
-                  className={[
-                    "w-full text-left rounded-2xl border px-3 py-2 text-sm font-semibold transition-colors",
-                    resolveModal.winnerOptionId === option.id
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-gray-200 bg-white text-gray-700",
-                  ].join(" ")}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            {resolveError && (
-              <div className="bg-nao/10 rounded-2xl p-3">
-                <p className="text-nao text-sm font-semibold">{resolveError}</p>
-              </div>
-            )}
+        {resolveModal && (() => {
+          const isBinary = resolveModal.event.eventType === "binary" || resolveModal.options.length === 1;
 
-            <div className="flex gap-3">
-              <Button3D variant="ghost" className="flex-1" onClick={() => setResolveModal(null)}>
-                Cancelar
-              </Button3D>
-              <Button3D
-                variant="primary"
-                className="flex-1"
-                loading={resolving}
-                disabled={!resolveModal.winnerOptionId}
-                onClick={handleResolve}
-              >
-                Confirmar
-              </Button3D>
+          return (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                {isBinary
+                  ? <>Qual foi o resultado de: <strong>{resolveModal.event.title}</strong></>
+                  : <>Definir alternativa vencedora de: <strong>{resolveModal.event.title}</strong></>
+                }
+              </p>
+
+              {isBinary ? (
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setResolveModal((prev) => (prev ? { ...prev, winnerChoice: "sim" } : prev))}
+                    className={[
+                      "flex-1 py-4 rounded-2xl font-extrabold text-lg border-2 transition-all",
+                      resolveModal.winnerChoice === "sim"
+                        ? "bg-sim text-white border-sim"
+                        : "bg-sim/10 text-sim border-sim/30",
+                    ].join(" ")}
+                  >
+                    SIM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResolveModal((prev) => (prev ? { ...prev, winnerChoice: "nao" } : prev))}
+                    className={[
+                      "flex-1 py-4 rounded-2xl font-extrabold text-lg border-2 transition-all",
+                      resolveModal.winnerChoice === "nao"
+                        ? "bg-nao text-white border-nao"
+                        : "bg-nao/10 text-nao border-nao/30",
+                    ].join(" ")}
+                  >
+                    NAO
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {resolveModal.options.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setResolveModal((prev) => (prev ? { ...prev, winnerOptionId: option.id } : prev))}
+                      className={[
+                        "w-full text-left rounded-2xl border px-3 py-2 text-sm font-semibold transition-colors",
+                        resolveModal.winnerOptionId === option.id
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-gray-200 bg-white text-gray-700",
+                      ].join(" ")}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {resolveError && (
+                <div className="bg-nao/10 rounded-2xl p-3">
+                  <p className="text-nao text-sm font-semibold">{resolveError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button3D variant="ghost" className="flex-1" onClick={() => setResolveModal(null)}>
+                  Cancelar
+                </Button3D>
+                <Button3D
+                  variant="primary"
+                  className="flex-1"
+                  loading={resolving}
+                  disabled={!resolveModal.winnerOptionId}
+                  onClick={handleResolve}
+                >
+                  Confirmar
+                </Button3D>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
     </div>
   );

@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase/config";
 import { useAuthStore } from "@/lib/stores/authStore";
 import Button3D from "@/components/ui/Button3D";
 import Card from "@/components/ui/Card";
-import type { EventCategory } from "@/lib/types";
+import type { EventCategory, EventType } from "@/lib/types";
 
 const CATEGORIES: EventCategory[] = [
   "esportes",
@@ -22,6 +22,7 @@ interface AdminEventFormProps {
 
 export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
   const { user } = useAuthStore();
+  const [eventType, setEventType] = useState<EventType>("binary");
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -72,14 +73,19 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
       setError("Informe o nome do patrocinador para eventos patrocinados.");
       return;
     }
-    const cleanedOptions = options.map((option) => option.trim()).filter(Boolean);
-    if (cleanedOptions.length < 2) {
-      setError("Informe pelo menos 2 alternativas para o evento.");
-      return;
-    }
-    if (new Set(cleanedOptions.map((option) => option.toLowerCase())).size !== cleanedOptions.length) {
-      setError("As alternativas nao podem ser repetidas.");
-      return;
+
+    // Validar alternativas apenas para multipla escolha
+    let cleanedOptions: string[] = [];
+    if (eventType === "multiple") {
+      cleanedOptions = options.map((option) => option.trim()).filter(Boolean);
+      if (cleanedOptions.length < 2) {
+        setError("Informe pelo menos 2 alternativas para o evento.");
+        return;
+      }
+      if (new Set(cleanedOptions.map((option) => option.toLowerCase())).size !== cleanedOptions.length) {
+        setError("As alternativas nao podem ser repetidas.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -87,23 +93,24 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
       const { data: eventData, error: insertError } = await supabase
         .from("events")
         .insert({
-        title: form.title.trim(),
-        description: form.description.trim(),
-        category: form.category,
-        closes_at: new Date(form.closesAt).toISOString(),
-        featured: form.featured,
-        sponsored: form.sponsored,
-        sponsor_name: form.sponsored ? form.sponsorName.trim() : null,
-        sponsor_logo_url: form.sponsored ? form.sponsorLogoURL.trim() : null,
-        season_id: form.seasonId.trim() || null,
-        status: "open",
-        sim_count: 0,
-        nao_count: 0,
-        total_bets: 0,
-        total_coins: 0,
-        winner_option_id: null,
-        created_by: user.uid,
-        created_at: new Date().toISOString(),
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category,
+          event_type: eventType,
+          closes_at: new Date(form.closesAt).toISOString(),
+          featured: form.featured,
+          sponsored: form.sponsored,
+          sponsor_name: form.sponsored ? form.sponsorName.trim() : null,
+          sponsor_logo_url: form.sponsored ? form.sponsorLogoURL.trim() : null,
+          season_id: form.seasonId.trim() || null,
+          status: "open",
+          sim_count: 0,
+          nao_count: 0,
+          total_bets: 0,
+          total_coins: 0,
+          winner_option_id: null,
+          created_by: user.uid,
+          created_at: new Date().toISOString(),
         })
         .select("id")
         .single();
@@ -111,17 +118,22 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
       if (insertError) throw new Error(insertError.message);
       if (!eventData?.id) throw new Error("Nao foi possivel obter o ID do evento.");
 
-      const { error: optionsError } = await supabase.from("event_options").insert(
-        cleanedOptions.map((label, idx) => ({
-          event_id: eventData.id,
-          label,
-          sort_order: idx,
-          sim_pool: 0,
-          nao_pool: 0,
-          total_bets: 0,
-          active: true,
-        }))
-      );
+      // Para binario: cria 1 opcao automatica com label = titulo do evento
+      // Para multipla escolha: cria as opcoes informadas
+      const optionsToInsert =
+        eventType === "binary"
+          ? [{ event_id: eventData.id, label: form.title.trim(), sort_order: 0, sim_pool: 0, nao_pool: 0, total_bets: 0, active: true }]
+          : cleanedOptions.map((label, idx) => ({
+              event_id: eventData.id,
+              label,
+              sort_order: idx,
+              sim_pool: 0,
+              nao_pool: 0,
+              total_bets: 0,
+              active: true,
+            }));
+
+      const { error: optionsError } = await supabase.from("event_options").insert(optionsToInsert);
 
       if (optionsError) {
         await supabase.from("events").delete().eq("id", eventData.id);
@@ -154,13 +166,55 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
     <Card>
       <h2 className="text-lg font-extrabold text-gray-900 mb-4">Criar Evento</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Tipo do evento */}
         <div>
-          <label className="block text-sm font-bold text-gray-600 mb-1">Titulo *</label>
+          <label className="block text-sm font-bold text-gray-600 mb-2">Tipo do evento</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setEventType("binary")}
+              className={[
+                "flex-1 py-3 rounded-2xl font-bold text-sm border-2 transition-all",
+                eventType === "binary"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-white text-gray-500 border-gray-200",
+              ].join(" ")}
+            >
+              SIM ou NAO
+            </button>
+            <button
+              type="button"
+              onClick={() => setEventType("multiple")}
+              className={[
+                "flex-1 py-3 rounded-2xl font-bold text-sm border-2 transition-all",
+                eventType === "multiple"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-white text-gray-500 border-gray-200",
+              ].join(" ")}
+            >
+              Multipla escolha
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            {eventType === "binary"
+              ? "Usuarios apostam SIM ou NAO diretamente na pergunta."
+              : "Usuarios escolhem entre varias alternativas."}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-gray-600 mb-1">
+            {eventType === "binary" ? "Pergunta *" : "Titulo *"}
+          </label>
           <input
             type="text"
             value={form.title}
             onChange={(e) => setField("title", e.target.value)}
-            placeholder='Ex: "O Brasil sera campeao da Copa 2026?"'
+            placeholder={
+              eventType === "binary"
+                ? 'Ex: "O namoro de Virginia e Vini Jr terminara em 2027?"'
+                : 'Ex: "Qual filme sera o vencedor do Oscar 2026?"'
+            }
             className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 font-semibold outline-none focus:border-primary"
           />
         </div>
@@ -261,40 +315,43 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
           </div>
         </div>
 
-        <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <label className="block text-sm font-bold text-gray-600">Alternativas do evento *</label>
-            <button
-              type="button"
-              onClick={addOption}
-              className="text-xs font-extrabold text-primary"
-            >
-              + Adicionar
-            </button>
-          </div>
+        {/* Alternativas - apenas para multipla escolha */}
+        {eventType === "multiple" && (
+          <div className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <label className="block text-sm font-bold text-gray-600">Alternativas *</label>
+              <button
+                type="button"
+                onClick={addOption}
+                className="text-xs font-extrabold text-primary"
+              >
+                + Adicionar
+              </button>
+            </div>
 
-          <div className="space-y-2">
-            {options.map((option, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={option}
-                  onChange={(e) => setOption(idx, e.target.value)}
-                  placeholder={`Alternativa ${idx + 1} (ex: Participante ${idx + 1})`}
-                  className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 font-semibold outline-none focus:border-primary"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeOption(idx)}
-                  disabled={options.length <= 2}
-                  className="text-xs font-bold text-nao disabled:text-gray-300 disabled:cursor-not-allowed"
-                >
-                  Remover
-                </button>
-              </div>
-            ))}
+            <div className="space-y-2">
+              {options.map((option, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={option}
+                    onChange={(e) => setOption(idx, e.target.value)}
+                    placeholder={`Alternativa ${idx + 1}`}
+                    className="w-full border-2 border-gray-200 rounded-2xl px-4 py-3 font-semibold outline-none focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeOption(idx)}
+                    disabled={options.length <= 2}
+                    className="text-xs font-bold text-nao disabled:text-gray-300 disabled:cursor-not-allowed"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {error && <p className="text-nao text-sm font-semibold">{error}</p>}
         {success && <p className="text-sim text-sm font-semibold">Evento criado com sucesso!</p>}

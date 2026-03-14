@@ -50,6 +50,7 @@ type EventRow = {
   title: string;
   description: string | null;
   category: Event["category"];
+  event_type: string | null;
   image_url: string | null;
   status: Event["status"];
   sim_count: number | null;
@@ -64,6 +65,7 @@ type EventRow = {
   featured: boolean | null;
   season_id: string | null;
   winner_option_id: string | null;
+  winner_choice: string | null;
   created_by: string;
   created_at: string;
   closes_at: string;
@@ -147,6 +149,7 @@ export function mapEventRow(row: EventRow): Event {
     title: row.title,
     description: row.description ?? "",
     category: row.category,
+    eventType: (row.event_type === "binary" ? "binary" : "multiple") as Event["eventType"],
     imageURL: row.image_url ?? undefined,
     status: row.status,
     simCount: Number(row.sim_count ?? 0),
@@ -160,12 +163,13 @@ export function mapEventRow(row: EventRow): Event {
     sponsorParticipations: Number(row.sponsor_participations ?? 0),
     seasonId: row.season_id ?? undefined,
     winnerOptionId: row.winner_option_id ?? undefined,
+    winnerChoice: (row.winner_choice as Event["winnerChoice"]) ?? undefined,
     createdBy: row.created_by,
     createdAt: row.created_at,
     closesAt: row.closes_at,
     resolvedAt: row.resolved_at ?? undefined,
     featured: Boolean(row.featured),
-  } as Event & { featured?: boolean };
+  };
 }
 
 export function mapEventOptionRow(row: EventOptionRow): EventOption {

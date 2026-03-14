@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
@@ -65,6 +65,8 @@ export default function EventPage({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [showBurst, setShowBurst] = useState(false);
+
+  const isBinary = event?.eventType === "binary" || options.length === 1;
 
   useEffect(() => {
     let mounted = true;
@@ -181,10 +183,18 @@ export default function EventPage({
       setConfirmOpen(false);
       setShowBurst(true);
       setTimeout(() => setShowBurst(false), 1000);
-      toast(
-        `Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${selectedOption.label} (${choice.toUpperCase()})`,
-        "success"
-      );
+
+      if (isBinary) {
+        toast(
+          `Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${choice.toUpperCase()}`,
+          "success"
+        );
+      } else {
+        toast(
+          `Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${selectedOption.label} (${choice.toUpperCase()})`,
+          "success"
+        );
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Tente novamente.";
       toast(msg, "error");
@@ -238,9 +248,17 @@ export default function EventPage({
           Voltar
         </button>
 
+        {/* Cabecalho do evento */}
         <Card>
           <div className="space-y-3">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{event.category}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{event.category}</p>
+              {isBinary && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                  SIM ou NAO
+                </span>
+              )}
+            </div>
             <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{event.title}</h1>
             {event.description && <p className="text-sm text-gray-500 leading-relaxed">{event.description}</p>}
             <div className="flex items-center gap-3 text-xs text-gray-400">
@@ -251,6 +269,7 @@ export default function EventPage({
           </div>
         </Card>
 
+        {/* Placar ao vivo */}
         <Card>
           <p className="text-sm font-bold text-gray-500 mb-3">Placar ao vivo</p>
           <ProgressBar simPercent={simPercent} naoPercent={naoPercent} />
@@ -268,58 +287,62 @@ export default function EventPage({
           </div>
         </Card>
 
-        <Card>
-          <div className="space-y-3">
-            <p className="text-sm font-bold text-gray-700">Alternativas</p>
-            <div className="space-y-2">
-              {options.map((option) => {
-                const optionTotal = option.simPool + option.naoPool || 1;
-                const optionSimPercent = Math.round((option.simPool / optionTotal) * 100);
-                const optionNaoPercent = 100 - optionSimPercent;
-                const isSelected = selectedOptionId === option.id;
-                const isWinner = event.winnerOptionId === option.id;
+        {/* Alternativas - apenas para multipla escolha */}
+        {!isBinary && (
+          <Card>
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-gray-700">Alternativas</p>
+              <div className="space-y-2">
+                {options.map((option) => {
+                  const optionTotal = option.simPool + option.naoPool || 1;
+                  const optionSimPercent = Math.round((option.simPool / optionTotal) * 100);
+                  const optionNaoPercent = 100 - optionSimPercent;
+                  const isSelected = selectedOptionId === option.id;
+                  const isWinner = event.winnerOptionId === option.id;
 
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    disabled={!option.active || isClosed}
-                    onClick={() => {
-                      setSelectedOptionId(option.id);
-                      setChoice(null);
-                    }}
-                    className={[
-                      "w-full text-left rounded-2xl border px-3 py-3 transition-colors",
-                      isSelected ? "border-primary bg-primary/5" : "border-gray-200 bg-white",
-                      !option.active || isClosed ? "opacity-80" : "",
-                    ].join(" ")}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-bold text-sm text-gray-900">{option.label}</p>
-                      {isWinner && (
-                        <span className="text-[11px] font-extrabold rounded-full bg-sim/15 text-sim px-2 py-1">
-                          VENCEDOR
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2">
-                      <ProgressBar simPercent={optionSimPercent} naoPercent={optionNaoPercent} />
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
-                      <span>SIM {optionSimPercent}%</span>
-                      <span>NAO {optionNaoPercent}%</span>
-                      <span>{formatCompact(option.totalBets)} apostas</span>
-                    </div>
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      disabled={!option.active || isClosed}
+                      onClick={() => {
+                        setSelectedOptionId(option.id);
+                        setChoice(null);
+                      }}
+                      className={[
+                        "w-full text-left rounded-2xl border px-3 py-3 transition-colors",
+                        isSelected ? "border-primary bg-primary/5" : "border-gray-200 bg-white",
+                        !option.active || isClosed ? "opacity-80" : "",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-bold text-sm text-gray-900">{option.label}</p>
+                        {isWinner && (
+                          <span className="text-[11px] font-extrabold rounded-full bg-sim/15 text-sim px-2 py-1">
+                            VENCEDOR
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2">
+                        <ProgressBar simPercent={optionSimPercent} naoPercent={optionNaoPercent} />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
+                        <span>SIM {optionSimPercent}%</span>
+                        <span>NAO {optionNaoPercent}%</span>
+                        <span>{formatCompact(option.totalBets)} apostas</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {!hasOptions && (
+                <p className="text-sm text-gray-400">Este evento ainda nao possui alternativas cadastradas.</p>
+              )}
             </div>
-            {!hasOptions && (
-              <p className="text-sm text-gray-400">Este evento ainda nao possui alternativas cadastradas.</p>
-            )}
-          </div>
-        </Card>
+          </Card>
+        )}
 
+        {/* Area de aposta */}
         {!hasOptions ? (
           <Card>
             <p className="text-center text-gray-500 text-sm">Aguardando alternativas deste evento.</p>
@@ -329,18 +352,28 @@ export default function EventPage({
             <div className="text-center py-4">
               <div className="text-4xl mb-2">fechado</div>
               <p className="font-bold text-gray-600">Apostas encerradas</p>
-              {winnerOption && (
+              {isBinary && event.winnerChoice ? (
+                <p className="text-sm text-gray-500 mt-1">
+                  Resultado: <span className={["font-bold", event.winnerChoice === "sim" ? "text-sim" : "text-nao"].join(" ")}>{event.winnerChoice.toUpperCase()}</span>
+                </p>
+              ) : winnerOption ? (
                 <p className="text-sm text-gray-500 mt-1">
                   Vencedor: <span className="font-bold text-gray-700">{winnerOption.label}</span>
                 </p>
-              )}
+              ) : null}
             </div>
           </Card>
         ) : !profile ? (
           <Card>
             <p className="text-center text-gray-500 text-sm">Faca login para apostar.</p>
           </Card>
-        ) : selectedOption && alreadyBetOnSelected ? (
+        ) : isBinary && alreadyBetOnSelected ? (
+          <Card>
+            <div className="text-center py-4">
+              <p className="font-bold text-gray-700">Voce ja fez sua previsao neste evento.</p>
+            </div>
+          </Card>
+        ) : !isBinary && selectedOption && alreadyBetOnSelected ? (
           <Card>
             <div className="text-center py-4">
               <p className="font-bold text-gray-700">Voce ja apostou nesta alternativa.</p>
@@ -350,30 +383,36 @@ export default function EventPage({
         ) : (
           <Card>
             <div className="space-y-4">
-              <p className="font-bold text-gray-700">Fazer previsao</p>
+              <p className="font-bold text-gray-700">
+                {isBinary ? "Qual sua previsao?" : "Fazer previsao"}
+              </p>
 
-              {selectedOption ? (
-                <div className="rounded-2xl bg-gray-50 px-4 py-3">
-                  <p className="text-xs text-gray-500">Alternativa selecionada</p>
-                  <p className="font-bold text-gray-900 text-sm">{selectedOption.label}</p>
-                </div>
-              ) : (
-                <div className="rounded-2xl bg-gray-50 px-4 py-3">
-                  <p className="text-sm text-gray-500">Selecione uma alternativa acima para continuar.</p>
-                </div>
+              {/* Para multi: mostrar alternativa selecionada */}
+              {!isBinary && (
+                selectedOption ? (
+                  <div className="rounded-2xl bg-gray-50 px-4 py-3">
+                    <p className="text-xs text-gray-500">Alternativa selecionada</p>
+                    <p className="font-bold text-gray-900 text-sm">{selectedOption.label}</p>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-gray-50 px-4 py-3">
+                    <p className="text-sm text-gray-500">Selecione uma alternativa acima para continuar.</p>
+                  </div>
+                )
               )}
 
+              {/* Botoes SIM / NAO */}
               <div className="flex gap-3">
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setChoice("sim")}
-                  disabled={!selectedOption}
+                  disabled={!isBinary && !selectedOption}
                   className={[
                     "flex-1 py-4 rounded-3xl font-extrabold text-lg border-2 transition-all",
                     choice === "sim"
                       ? "bg-sim text-white border-sim shadow-btn-sim translate-y-[6px] shadow-none"
                       : "bg-sim/10 text-sim border-sim/30 shadow-btn-sim",
-                    !selectedOption ? "opacity-50 cursor-not-allowed" : "",
+                    !isBinary && !selectedOption ? "opacity-50 cursor-not-allowed" : "",
                   ].join(" ")}
                 >
                   achoQ SIM
@@ -381,13 +420,13 @@ export default function EventPage({
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setChoice("nao")}
-                  disabled={!selectedOption}
+                  disabled={!isBinary && !selectedOption}
                   className={[
                     "flex-1 py-4 rounded-3xl font-extrabold text-lg border-2 transition-all",
                     choice === "nao"
                       ? "bg-nao text-white border-nao shadow-btn-nao translate-y-[6px] shadow-none"
                       : "bg-nao/10 text-nao border-nao/30 shadow-btn-nao",
-                    !selectedOption ? "opacity-50 cursor-not-allowed" : "",
+                    !isBinary && !selectedOption ? "opacity-50 cursor-not-allowed" : "",
                   ].join(" ")}
                 >
                   achoQ NAO
@@ -402,7 +441,7 @@ export default function EventPage({
                       variant={choice === "sim" ? "sim" : "nao"}
                       size="lg"
                       className="w-full mt-4"
-                      disabled={coins < 10 || !selectedOption}
+                      disabled={coins < 10 || (!isBinary && !selectedOption)}
                       onClick={() => setConfirmOpen(true)}
                     >
                       Confirmar previsao
@@ -416,9 +455,11 @@ export default function EventPage({
 
               {!choice && (
                 <p className="text-center text-sm text-gray-400">
-                  {selectedOption
+                  {isBinary
                     ? "Selecione SIM ou NAO para apostar"
-                    : "Selecione uma alternativa primeiro"}
+                    : selectedOption
+                      ? "Selecione SIM ou NAO para apostar"
+                      : "Selecione uma alternativa primeiro"}
                 </p>
               )}
             </div>
@@ -426,6 +467,7 @@ export default function EventPage({
         )}
       </div>
 
+      {/* Modal de confirmacao */}
       <Modal isOpen={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirmar previsao">
         <div className="space-y-4">
           <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
@@ -433,12 +475,14 @@ export default function EventPage({
               <span className="text-gray-500">Evento</span>
               <span className="font-semibold text-gray-800 max-w-[60%] text-right line-clamp-1">{event.title}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Alternativa</span>
-              <span className="font-semibold text-gray-800 max-w-[60%] text-right line-clamp-1">
-                {selectedOption?.label ?? "-"}
-              </span>
-            </div>
+            {!isBinary && selectedOption && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Alternativa</span>
+                <span className="font-semibold text-gray-800 max-w-[60%] text-right line-clamp-1">
+                  {selectedOption.label}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Sua previsao</span>
               <span className={["font-extrabold", choice === "sim" ? "text-sim" : "text-nao"].join(" ")}>

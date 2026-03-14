@@ -61,9 +61,16 @@ export default function EventCard({ event, featured = false }: EventCardProps) {
         )}
         {/* Category + Timer */}
         <div className="flex items-center justify-between">
-          <span className={["text-xs font-bold px-2 py-1 rounded-full", meta.color].join(" ")}>
-            {meta.icon} {event.category}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className={["text-xs font-bold px-2 py-1 rounded-full", meta.color].join(" ")}>
+              {meta.icon} {event.category}
+            </span>
+            {event.eventType === "multiple" && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                Multipla
+              </span>
+            )}
+          </div>
           <span className="text-xs font-semibold text-gray-400">
             ⏱ {timeRemaining(event.closesAt)}
           </span>
