@@ -40,11 +40,12 @@ export default function BetModal({ event, initialChoice, initialOptionId, preloa
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setChoice(initialChoice);
+      // For multiple-choice events, always bet "sim" (betting FOR that option)
+      setChoice(!isBinary ? "sim" : initialChoice);
       setBetAmount(Math.max(10, Math.min(coins, 50)));
       setSelectedOptionId(initialOptionId ?? null);
     }
-  }, [isOpen, initialChoice, initialOptionId, coins]);
+  }, [isOpen, initialChoice, initialOptionId, coins, isBinary]);
 
   // Load options (or use preloaded)
   useEffect(() => {
@@ -98,10 +99,16 @@ export default function BetModal({ event, initialChoice, initialOptionId, preloa
   // Odds and payout
   const odds = (() => {
     if (!selectedOption) return 1.95;
-    const pool = choice === "sim" ? selectedOption.simPool : selectedOption.naoPool;
-    const total = selectedOption.simPool + selectedOption.naoPool;
-    if (pool === 0 || total === 0) return 1.95;
-    return (total * 0.95) / pool;
+    if (isBinary) {
+      const pool = choice === "sim" ? selectedOption.simPool : selectedOption.naoPool;
+      const total = selectedOption.simPool + selectedOption.naoPool;
+      if (pool === 0 || total === 0) return 1.95;
+      return (total * 0.95) / pool;
+    }
+    // Multiple: pool unico — odds = total de todas opcoes / pool desta opcao
+    const totalPool = options.reduce((sum, o) => sum + o.simPool, 0);
+    if (selectedOption.simPool === 0 || totalPool === 0) return 1.95;
+    return (totalPool * 0.95) / selectedOption.simPool;
   })();
   const potentialPayout = Math.floor(betAmount * odds);
 
@@ -124,11 +131,10 @@ export default function BetModal({ event, initialChoice, initialOptionId, preloa
 
       if (error) throw new Error(error.message);
 
-      const choiceLabel = choice.toUpperCase();
       if (isBinary) {
-        toast(`Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${choiceLabel}`, "success");
+        toast(`Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${choice.toUpperCase()}`, "success");
       } else {
-        toast(`Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${selectedOption.label} (${choiceLabel})`, "success");
+        toast(`Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${selectedOption.label}`, "success");
       }
       onClose();
     } catch (err: unknown) {
@@ -197,8 +203,30 @@ export default function BetModal({ event, initialChoice, initialOptionId, preloa
                 </div>
               ) : (
                 <>
-                  {/* Option selector — only for multi-option when no option was pre-selected */}
-                  {!isBinary && options.length > 1 && !initialOptionId && (
+                  {/* Multiple-choice: show selected option */}
+                  {!isBinary && selectedOption && (
+                    <div className="flex items-center justify-between rounded-2xl bg-primary/5 border-2 border-primary px-4 py-3">
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                          Sua escolha
+                        </p>
+                        <p className="font-extrabold text-gray-900 text-[15px]">
+                          {selectedOption.label}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                          Odds
+                        </p>
+                        <p className="font-extrabold text-primary text-xl">
+                          {odds.toFixed(2)}x
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Multiple-choice: option selector when no option pre-selected */}
+                  {!isBinary && !selectedOptionId && options.length > 1 && (
                     <div className="space-y-2">
                       <p className="text-sm font-bold text-gray-500">Escolha a alternativa</p>
                       <div className="space-y-1.5 max-h-40 overflow-y-auto">
@@ -207,12 +235,7 @@ export default function BetModal({ event, initialChoice, initialOptionId, preloa
                             key={option.id}
                             type="button"
                             onClick={() => setSelectedOptionId(option.id)}
-                            className={[
-                              "w-full text-left rounded-2xl border-2 px-3 py-2.5 text-sm font-bold transition-all",
-                              selectedOptionId === option.id
-                                ? "border-primary bg-primary/5 text-primary"
-                                : "border-gray-200 bg-white text-gray-700",
-                            ].join(" ")}
+                            className="w-full text-left rounded-2xl border-2 border-gray-200 bg-white px-3 py-2.5 text-sm font-bold text-gray-700 transition-all hover:border-primary/50"
                           >
                             {option.label}
                           </button>
@@ -221,42 +244,37 @@ export default function BetModal({ event, initialChoice, initialOptionId, preloa
                     </div>
                   )}
 
-                  {/* Show selected option label for multi-option */}
-                  {!isBinary && selectedOption && initialOptionId && (
-                    <div className="rounded-2xl border-2 border-primary bg-primary/5 px-3 py-2.5 text-sm font-bold text-primary">
-                      {selectedOption.label}
+                  {/* Binary: SIM/NÃO choice card */}
+                  {isBinary && (
+                    <div className="flex items-center justify-between rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={[
+                            "w-10 h-10 rounded-full flex items-center justify-center text-white text-lg",
+                            choice === "sim" ? "bg-sim" : "bg-nao",
+                          ].join(" ")}
+                        >
+                          {choice === "sim" ? "✓" : "✗"}
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            Sua escolha
+                          </p>
+                          <p className="font-extrabold text-gray-900 text-[15px]">
+                            {choice === "sim" ? "achoQ SIM" : "achoQ NAO"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                          Odds
+                        </p>
+                        <p className="font-extrabold text-primary text-xl">
+                          {odds.toFixed(2)}x
+                        </p>
+                      </div>
                     </div>
                   )}
-
-                  {/* Choice card */}
-                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={[
-                          "w-10 h-10 rounded-full flex items-center justify-center text-white text-lg",
-                          choice === "sim" ? "bg-sim" : "bg-nao",
-                        ].join(" ")}
-                      >
-                        {choice === "sim" ? "✓" : "✗"}
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                          Sua escolha
-                        </p>
-                        <p className="font-extrabold text-gray-900 text-[15px]">
-                          {choice === "sim" ? "achoQ SIM" : "achoQ NAO"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0 ml-2">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        Odds
-                      </p>
-                      <p className="font-extrabold text-primary text-xl">
-                        {odds.toFixed(2)}x
-                      </p>
-                    </div>
-                  </div>
 
                   {/* Amount section */}
                   {!needsOptionSelect && (

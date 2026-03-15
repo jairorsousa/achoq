@@ -191,7 +191,7 @@ export default function EventPage({
         );
       } else {
         toast(
-          `Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${selectedOption.label} (${choice.toUpperCase()})`,
+          `Boa! Voce apostou ${formatCoins(betAmount)} Q$ em ${selectedOption.label}`,
           "success"
         );
       }
@@ -292,49 +292,51 @@ export default function EventPage({
           <Card>
             <div className="space-y-3">
               <p className="text-sm font-bold text-gray-700">Alternativas</p>
-              <div className="space-y-2">
-                {options.map((option) => {
-                  const optionTotal = option.simPool + option.naoPool || 1;
-                  const optionSimPercent = Math.round((option.simPool / optionTotal) * 100);
-                  const optionNaoPercent = 100 - optionSimPercent;
-                  const isSelected = selectedOptionId === option.id;
-                  const isWinner = event.winnerOptionId === option.id;
+              {(() => {
+                const totalPool = options.reduce((sum, o) => sum + o.simPool, 0) || 1;
+                return (
+                  <div className="space-y-2">
+                    {options.map((option) => {
+                      const pct = Math.round((option.simPool / totalPool) * 100);
+                      const isSelected = selectedOptionId === option.id;
+                      const isWinner = event.winnerOptionId === option.id;
 
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      disabled={!option.active || isClosed}
-                      onClick={() => {
-                        setSelectedOptionId(option.id);
-                        setChoice(null);
-                      }}
-                      className={[
-                        "w-full text-left rounded-2xl border px-3 py-3 transition-colors",
-                        isSelected ? "border-primary bg-primary/5" : "border-gray-200 bg-white",
-                        !option.active || isClosed ? "opacity-80" : "",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-bold text-sm text-gray-900">{option.label}</p>
-                        {isWinner && (
-                          <span className="text-[11px] font-extrabold rounded-full bg-sim/15 text-sim px-2 py-1">
-                            VENCEDOR
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-2">
-                        <ProgressBar simPercent={optionSimPercent} naoPercent={optionNaoPercent} />
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
-                        <span>SIM {optionSimPercent}%</span>
-                        <span>NAO {optionNaoPercent}%</span>
-                        <span>{formatCompact(option.totalBets)} apostas</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          disabled={!option.active || isClosed}
+                          onClick={() => {
+                            setSelectedOptionId(option.id);
+                            setChoice("sim");
+                          }}
+                          className={[
+                            "w-full text-left rounded-2xl border-2 px-3 py-3 transition-colors",
+                            isSelected ? "border-primary bg-primary/5" : "border-gray-200 bg-white",
+                            !option.active || isClosed ? "opacity-80" : "",
+                          ].join(" ")}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-sm text-gray-900">{option.label}</p>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {isWinner && (
+                                <span className="text-[11px] font-extrabold rounded-full bg-sim/15 text-sim px-2 py-1">
+                                  VENCEDOR
+                                </span>
+                              )}
+                              <span className="text-xs font-bold text-primary">{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
+                            <span>{formatCompact(option.totalBets)} apostas</span>
+                            <span>{formatCompact(option.simPool)} Q$ apostados</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               {!hasOptions && (
                 <p className="text-sm text-gray-400">Este evento ainda nao possui alternativas cadastradas.</p>
               )}
@@ -380,39 +382,21 @@ export default function EventPage({
               <p className="text-sm text-gray-400 mt-1">Escolha outra alternativa para apostar novamente.</p>
             </div>
           </Card>
-        ) : (
+        ) : isBinary ? (
+          /* ----- BINARY: SIM / NAO ----- */
           <Card>
             <div className="space-y-4">
-              <p className="font-bold text-gray-700">
-                {isBinary ? "Qual sua previsao?" : "Fazer previsao"}
-              </p>
+              <p className="font-bold text-gray-700">Qual sua previsao?</p>
 
-              {/* Para multi: mostrar alternativa selecionada */}
-              {!isBinary && (
-                selectedOption ? (
-                  <div className="rounded-2xl bg-gray-50 px-4 py-3">
-                    <p className="text-xs text-gray-500">Alternativa selecionada</p>
-                    <p className="font-bold text-gray-900 text-sm">{selectedOption.label}</p>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl bg-gray-50 px-4 py-3">
-                    <p className="text-sm text-gray-500">Selecione uma alternativa acima para continuar.</p>
-                  </div>
-                )
-              )}
-
-              {/* Botoes SIM / NAO */}
               <div className="flex gap-3">
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setChoice("sim")}
-                  disabled={!isBinary && !selectedOption}
                   className={[
                     "flex-1 py-4 rounded-3xl font-extrabold text-lg border-2 transition-all",
                     choice === "sim"
                       ? "bg-sim text-white border-sim shadow-btn-sim translate-y-[6px] shadow-none"
                       : "bg-sim/10 text-sim border-sim/30 shadow-btn-sim",
-                    !isBinary && !selectedOption ? "opacity-50 cursor-not-allowed" : "",
                   ].join(" ")}
                 >
                   achoQ SIM
@@ -420,13 +404,11 @@ export default function EventPage({
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setChoice("nao")}
-                  disabled={!isBinary && !selectedOption}
                   className={[
                     "flex-1 py-4 rounded-3xl font-extrabold text-lg border-2 transition-all",
                     choice === "nao"
                       ? "bg-nao text-white border-nao shadow-btn-nao translate-y-[6px] shadow-none"
                       : "bg-nao/10 text-nao border-nao/30 shadow-btn-nao",
-                    !isBinary && !selectedOption ? "opacity-50 cursor-not-allowed" : "",
                   ].join(" ")}
                 >
                   achoQ NAO
@@ -441,7 +423,7 @@ export default function EventPage({
                       variant={choice === "sim" ? "sim" : "nao"}
                       size="lg"
                       className="w-full mt-4"
-                      disabled={coins < 10 || (!isBinary && !selectedOption)}
+                      disabled={coins < 10}
                       onClick={() => setConfirmOpen(true)}
                     >
                       Confirmar previsao
@@ -455,11 +437,44 @@ export default function EventPage({
 
               {!choice && (
                 <p className="text-center text-sm text-gray-400">
-                  {isBinary
-                    ? "Selecione SIM ou NAO para apostar"
-                    : selectedOption
-                      ? "Selecione SIM ou NAO para apostar"
-                      : "Selecione uma alternativa primeiro"}
+                  Selecione SIM ou NAO para apostar
+                </p>
+              )}
+            </div>
+          </Card>
+        ) : (
+          /* ----- MULTIPLE: selecionar alternativa e apostar ----- */
+          <Card>
+            <div className="space-y-4">
+              <p className="font-bold text-gray-700">Fazer previsao</p>
+
+              {selectedOption ? (
+                <>
+                  <div className="rounded-2xl bg-primary/5 border-2 border-primary px-4 py-3">
+                    <p className="text-xs text-gray-500">Alternativa selecionada</p>
+                    <p className="font-bold text-gray-900 text-sm">{selectedOption.label}</p>
+                  </div>
+
+                  <BetAmountInput value={betAmount} max={coins} onChange={setBetAmount} />
+                  <Button3D
+                    variant="primary"
+                    size="lg"
+                    className="w-full mt-4"
+                    disabled={coins < 10}
+                    onClick={() => {
+                      setChoice("sim");
+                      setConfirmOpen(true);
+                    }}
+                  >
+                    Confirmar previsao
+                  </Button3D>
+                  {coins < 10 && (
+                    <p className="text-center text-xs text-nao font-bold mt-2">Saldo insuficiente (minimo 10 Q$)</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-center text-sm text-gray-400">
+                  Selecione uma alternativa acima para apostar
                 </p>
               )}
             </div>
@@ -475,20 +490,21 @@ export default function EventPage({
               <span className="text-gray-500">Evento</span>
               <span className="font-semibold text-gray-800 max-w-[60%] text-right line-clamp-1">{event.title}</span>
             </div>
-            {!isBinary && selectedOption && (
+            {isBinary ? (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Sua previsao</span>
+                <span className={["font-extrabold", choice === "sim" ? "text-sim" : "text-nao"].join(" ")}>
+                  {choice?.toUpperCase()}
+                </span>
+              </div>
+            ) : selectedOption ? (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Alternativa</span>
-                <span className="font-semibold text-gray-800 max-w-[60%] text-right line-clamp-1">
+                <span className="font-semibold text-primary max-w-[60%] text-right line-clamp-1">
                   {selectedOption.label}
                 </span>
               </div>
-            )}
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Sua previsao</span>
-              <span className={["font-extrabold", choice === "sim" ? "text-sim" : "text-nao"].join(" ")}>
-                {choice?.toUpperCase()}
-              </span>
-            </div>
+            ) : null}
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Valor apostado</span>
               <span className="font-bold text-coin-dark">{formatCoins(betAmount)} Q$</span>

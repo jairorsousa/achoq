@@ -177,75 +177,61 @@ export default function EventCard({ event, featured = false }: EventCardProps) {
             </>
           )}
 
-          {/* ----- MULTIPLE: option rows with SIM/NÃO pills ----- */}
-          {isMultiple && (
-            <>
-              <div className="space-y-2">
-                {visibleOptions.map((option) => {
-                  const optTotal = option.simPool + option.naoPool || 1;
-                  const simPct = Math.round((option.simPool / optTotal) * 100);
-                  const naoPct = 100 - simPct;
+          {/* ----- MULTIPLE: option rows with percentage + bet button ----- */}
+          {isMultiple && (() => {
+            const totalPool = options.reduce((sum, o) => sum + o.simPool, 0) || 1;
+            return (
+              <>
+                <div className="space-y-2">
+                  {visibleOptions.map((option) => {
+                    const pct = Math.round((option.simPool / totalPool) * 100);
 
-                  return (
-                    <div
-                      key={option.id}
-                      className="flex items-center gap-2 rounded-2xl bg-gray-50 border border-gray-100 px-3 py-2.5"
-                    >
-                      {/* Option label */}
-                      <p className="flex-1 font-bold text-sm text-gray-900 leading-tight min-w-0 line-clamp-2">
-                        {option.label}
-                      </p>
+                    return (
+                      <div
+                        key={option.id}
+                        className="flex items-center gap-2 rounded-2xl bg-gray-50 border border-gray-100 px-3 py-2.5"
+                      >
+                        <p className="flex-1 font-bold text-sm text-gray-900 leading-tight min-w-0 line-clamp-2">
+                          {option.label}
+                        </p>
 
-                      {/* SIM / NÃO pills */}
-                      {isOpen ? (
-                        <div className="flex gap-1.5 flex-shrink-0">
+                        {isOpen ? (
                           <button
                             onClick={(e) => openBetModal(e, "sim", option.id)}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-sim/10 text-sim border border-sim/20 active:bg-sim active:text-white transition-all"
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20 active:bg-primary active:text-white transition-all flex-shrink-0"
                           >
-                            SIM {simPct}%
+                            {pct}% achoQ
                           </button>
-                          <button
-                            onClick={(e) => openBetModal(e, "nao", option.id)}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-nao/10 text-nao border border-nao/20 active:bg-nao active:text-white transition-all"
-                          >
-                            NAO {naoPct}%
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-sim/10 text-sim">
-                            SIM {simPct}%
+                        ) : (
+                          <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-500 flex-shrink-0">
+                            {pct}%
                           </span>
-                          <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-nao/10 text-nao">
-                            NAO {naoPct}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        )}
+                      </div>
+                    );
+                  })}
 
-                {hiddenCount > 0 && !expanded && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpanded(true);
-                    }}
-                    className="w-full text-center text-xs font-bold text-primary py-1.5"
-                  >
-                    +{hiddenCount} alternativa{hiddenCount > 1 ? "s" : ""}
-                  </button>
-                )}
-              </div>
+                  {hiddenCount > 0 && !expanded && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpanded(true);
+                      }}
+                      className="w-full text-center text-xs font-bold text-primary py-1.5"
+                    >
+                      +{hiddenCount} alternativa{hiddenCount > 1 ? "s" : ""}
+                    </button>
+                  )}
+                </div>
 
-              {/* Stats */}
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>👥 {formatCompact(event.totalBets)} palpites</span>
-                <span>🪙 {formatCompact(event.totalCoins)} Q$ em jogo</span>
-              </div>
-            </>
-          )}
+                {/* Stats */}
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>👥 {formatCompact(event.totalBets)} palpites</span>
+                  <span>🪙 {formatCompact(event.totalCoins)} Q$ em jogo</span>
+                </div>
+              </>
+            );
+          })()}
           </div>
         </Card>
       </motion.div>
