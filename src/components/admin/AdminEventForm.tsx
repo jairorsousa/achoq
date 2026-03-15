@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/config";
+import { uploadEventImage } from "@/lib/supabase/storage";
 import { useAuthStore } from "@/lib/stores/authStore";
 import Button3D from "@/components/ui/Button3D";
 import Card from "@/components/ui/Card";
@@ -16,12 +17,16 @@ const CATEGORIES: EventCategory[] = [
   "outros",
 ];
 
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
+const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 interface AdminEventFormProps {
   onCreated?: () => void;
 }
 
 export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
   const { user } = useAuthStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [eventType, setEventType] = useState<EventType>("binary");
   const [form, setForm] = useState({
     title: "",
@@ -34,6 +39,8 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
     sponsorLogoURL: "",
     seasonId: "",
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [options, setOptions] = useState<string[]>(["", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -60,6 +67,35 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
       if (prev.length <= 2) return prev;
       return prev.filter((_, idx) => idx !== index);
     });
+  }
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      setError("Formato invalido. Use JPG, PNG ou WebP.");
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setError("Imagem muito grande. Maximo 2 MB.");
+      return;
+    }
+
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setError("");
+  }
+
+  function removeImage() {
+    setImageFile(null);
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+      setImagePreview(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -90,6 +126,7 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
 
     setLoading(true);
     try {
+      // 1. Criar o evento
       const { data: eventData, error: insertError } = await supabase
         .from("events")
         .insert({
@@ -118,8 +155,21 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
       if (insertError) throw new Error(insertError.message);
       if (!eventData?.id) throw new Error("Nao foi possivel obter o ID do evento.");
 
-      // Para binario: cria 1 opcao automatica com label = titulo do evento
-      // Para multipla escolha: cria as opcoes informadas
+      // 2. Upload de imagem (se houver)
+      if (imageFile && form.featured) {
+        try {
+          const imageUrl = await uploadEventImage(imageFile, eventData.id);
+          await supabase
+            .from("events")
+            .update({ image_url: imageUrl })
+            .eq("id", eventData.id);
+        } catch {
+          // Imagem falhou, mas evento foi criado — segue sem imagem
+          console.warn("Falha no upload da imagem, evento criado sem imagem.");
+        }
+      }
+
+      // 3. Criar opcoes
       const optionsToInsert =
         eventType === "binary"
           ? [{ event_id: eventData.id, label: form.title.trim(), sort_order: 0, sim_pool: 0, nao_pool: 0, total_bets: 0, active: true }]
@@ -140,6 +190,7 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
         throw new Error(optionsError.message);
       }
 
+      // 4. Reset
       setForm({
         title: "",
         description: "",
@@ -152,6 +203,7 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
         seasonId: "",
       });
       setOptions(["", ""]);
+      removeImage();
       setSuccess(true);
       onCreated?.();
     } catch (err: unknown) {
@@ -257,6 +309,7 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
           </div>
         </div>
 
+        {/* Evento em destaque + imagem */}
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
@@ -266,6 +319,51 @@ export default function AdminEventForm({ onCreated }: AdminEventFormProps) {
           />
           <span className="text-sm font-bold text-gray-600">Evento em destaque</span>
         </label>
+
+        {form.featured && (
+          <div className="space-y-3 rounded-2xl border border-primary/30 bg-primary/5 p-3">
+            <label className="block text-sm font-bold text-gray-600">
+              Imagem de destaque
+            </label>
+            <p className="text-xs text-gray-400 -mt-1">
+              Recomendado: 800 x 400 px (proporcao 2:1). JPG, PNG ou WebP. Max 2 MB.
+            </p>
+
+            {imagePreview ? (
+              <div className="relative">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-full h-40 object-cover rounded-2xl border border-gray-200"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white text-xs flex items-center justify-center hover:bg-black/80"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-32 rounded-2xl border-2 border-dashed border-gray-300 bg-white flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary hover:text-primary transition-colors"
+              >
+                <span className="text-2xl">📷</span>
+                <span className="text-sm font-bold">Selecionar imagem</span>
+              </button>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+          </div>
+        )}
 
         <label className="flex items-center gap-3 cursor-pointer">
           <input

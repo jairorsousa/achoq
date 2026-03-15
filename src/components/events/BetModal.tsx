@@ -13,13 +13,15 @@ import { formatCoins } from "@/lib/utils/format";
 interface BetModalProps {
   event: Event;
   initialChoice: BetChoice;
+  initialOptionId?: string;
+  preloadedOptions?: EventOption[];
   isOpen: boolean;
   onClose: () => void;
 }
 
 const QUICK_AMOUNTS = [50, 100, 500] as const;
 
-export default function BetModal({ event, initialChoice, isOpen, onClose }: BetModalProps) {
+export default function BetModal({ event, initialChoice, initialOptionId, preloadedOptions, isOpen, onClose }: BetModalProps) {
   const { user } = useAuthStore();
   const profile = useUserStore((s) => s.profile);
   const { toast } = useToast();
@@ -40,13 +42,23 @@ export default function BetModal({ event, initialChoice, isOpen, onClose }: BetM
     if (isOpen) {
       setChoice(initialChoice);
       setBetAmount(Math.max(10, Math.min(coins, 50)));
-      setSelectedOptionId(null);
+      setSelectedOptionId(initialOptionId ?? null);
     }
-  }, [isOpen, initialChoice, coins]);
+  }, [isOpen, initialChoice, initialOptionId, coins]);
 
-  // Load options
+  // Load options (or use preloaded)
   useEffect(() => {
     if (!isOpen) return;
+
+    if (preloadedOptions && preloadedOptions.length > 0) {
+      setOptions(preloadedOptions);
+      if (preloadedOptions.length <= 1) {
+        setSelectedOptionId(preloadedOptions[0]?.id ?? null);
+      }
+      setLoadingOptions(false);
+      return;
+    }
+
     let mounted = true;
 
     const load = async () => {
@@ -63,7 +75,6 @@ export default function BetModal({ event, initialChoice, isOpen, onClose }: BetM
       );
       setOptions(mapped);
 
-      // Auto-select for binary (single option)
       if (mapped.length <= 1) {
         setSelectedOptionId(mapped[0]?.id ?? null);
       }
@@ -72,7 +83,7 @@ export default function BetModal({ event, initialChoice, isOpen, onClose }: BetM
 
     void load();
     return () => { mounted = false; };
-  }, [isOpen, event.id]);
+  }, [isOpen, event.id, preloadedOptions]);
 
   // Prevent body scroll
   useEffect(() => {

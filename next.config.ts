@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
   // Turbopack is enabled by default in Next.js 16; adding empty config silences
   // the webpack/turbopack mismatch warning from next-pwa
   turbopack: {},
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.supabase.co",
+      },
+    ],
+  },
 };
 
 export default withPWA(nextConfig);
