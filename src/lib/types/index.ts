@@ -16,7 +16,7 @@ export interface User {
   createdAt: string;
 }
 
-export type EventCategory = "esportes" | "politica" | "entretenimento" | "tecnologia" | "economia" | "outros";
+export type EventCategory = "esportes" | "entretenimento" | "politica";
 export type EventStatus = "open" | "closed" | "resolved" | "cancelled";
 
 export interface EventOption {

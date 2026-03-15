@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import EventCard from "@/components/events/EventCard";
 import CategoryFilter from "@/components/events/CategoryFilter";
-import RewardedAdButton from "@/components/ads/RewardedAdButton";
 import Skeleton from "@/components/ui/Skeleton";
 import { useEvents } from "@/lib/hooks/useEvents";
 import { useUser } from "@/lib/hooks/useUser";
@@ -155,7 +154,6 @@ export default function HomePage() {
         </AnimatePresence>
       )}
 
-      <RewardedAdButton />
     </div>
   );
 }

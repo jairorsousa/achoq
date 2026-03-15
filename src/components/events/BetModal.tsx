@@ -197,8 +197,8 @@ export default function BetModal({ event, initialChoice, initialOptionId, preloa
                 </div>
               ) : (
                 <>
-                  {/* Option selector — only for multi-option */}
-                  {!isBinary && options.length > 1 && (
+                  {/* Option selector — only for multi-option when no option was pre-selected */}
+                  {!isBinary && options.length > 1 && !initialOptionId && (
                     <div className="space-y-2">
                       <p className="text-sm font-bold text-gray-500">Escolha a alternativa</p>
                       <div className="space-y-1.5 max-h-40 overflow-y-auto">
@@ -221,6 +221,13 @@ export default function BetModal({ event, initialChoice, initialOptionId, preloa
                     </div>
                   )}
 
+                  {/* Show selected option label for multi-option */}
+                  {!isBinary && selectedOption && initialOptionId && (
+                    <div className="rounded-2xl border-2 border-primary bg-primary/5 px-3 py-2.5 text-sm font-bold text-primary">
+                      {selectedOption.label}
+                    </div>
+                  )}
+
                   {/* Choice card */}
                   <div className="flex items-center justify-between rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -237,7 +244,7 @@ export default function BetModal({ event, initialChoice, initialOptionId, preloa
                           Sua escolha
                         </p>
                         <p className="font-extrabold text-gray-900 text-[15px]">
-                          {choice === "sim" ? "SIM, com certeza" : "NAO, de jeito nenhum"}
+                          {choice === "sim" ? "achoQ SIM" : "achoQ NAO"}
                         </p>
                       </div>
                     </div>

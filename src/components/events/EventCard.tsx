@@ -15,9 +15,6 @@ const CATEGORY_META: Record<EventCategory, { icon: string; color: string }> = {
   esportes: { icon: "⚽", color: "bg-green-100 text-green-700" },
   entretenimento: { icon: "🎭", color: "bg-pink-100 text-pink-700" },
   politica: { icon: "🏛️", color: "bg-blue-100 text-blue-700" },
-  tecnologia: { icon: "💻", color: "bg-indigo-100 text-indigo-700" },
-  economia: { icon: "📈", color: "bg-yellow-100 text-yellow-700" },
-  outros: { icon: "❓", color: "bg-gray-100 text-gray-700" },
 };
 
 const MAX_VISIBLE_OPTIONS = 3;
@@ -40,6 +37,7 @@ export default function EventCard({ event, featured = false }: EventCardProps) {
   const [betModalOpen, setBetModalOpen] = useState(false);
   const [betChoice, setBetChoice] = useState<BetChoice>("sim");
   const [betOptionId, setBetOptionId] = useState<string | undefined>();
+  const [expanded, setExpanded] = useState(false);
 
   // Load options for multi-option events
   useEffect(() => {
@@ -94,7 +92,7 @@ export default function EventCard({ event, featured = false }: EventCardProps) {
     setBetModalOpen(true);
   }
 
-  const visibleOptions = options.slice(0, MAX_VISIBLE_OPTIONS);
+  const visibleOptions = expanded ? options : options.slice(0, MAX_VISIBLE_OPTIONS);
   const hiddenCount = options.length - MAX_VISIBLE_OPTIONS;
 
   return (
@@ -228,11 +226,11 @@ export default function EventCard({ event, featured = false }: EventCardProps) {
                   );
                 })}
 
-                {hiddenCount > 0 && (
+                {hiddenCount > 0 && !expanded && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleCardClick();
+                      setExpanded(true);
                     }}
                     className="w-full text-center text-xs font-bold text-primary py-1.5"
                   >

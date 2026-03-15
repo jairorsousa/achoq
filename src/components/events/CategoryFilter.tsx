@@ -8,10 +8,8 @@ type CategoryFilter = EventCategory | "all";
 const CATEGORIES: { id: CategoryFilter; label: string; icon: string }[] = [
   { id: "all", label: "Todos", icon: "🔥" },
   { id: "esportes", label: "Esporte", icon: "⚽" },
-  { id: "entretenimento", label: "Pop", icon: "🎭" },
+  { id: "entretenimento", label: "Entretenimento", icon: "📺" },
   { id: "politica", label: "Política", icon: "🏛️" },
-  { id: "tecnologia", label: "Tech", icon: "💻" },
-  { id: "economia", label: "Economia", icon: "📈" },
 ];
 
 interface CategoryFilterProps {

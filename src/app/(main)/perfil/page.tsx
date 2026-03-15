@@ -12,7 +12,6 @@ import LevelBadge from "@/components/ui/LevelBadge";
 import Card from "@/components/ui/Card";
 import Button3D from "@/components/ui/Button3D";
 import Skeleton from "@/components/ui/Skeleton";
-import RewardedAdButton from "@/components/ads/RewardedAdButton";
 import type { Bet, Transaction } from "@/lib/types";
 import { formatCoins } from "@/lib/utils/format";
 
@@ -198,8 +197,6 @@ export default function PerfilPage() {
           </Card>
         ))}
       </div>
-
-      <RewardedAdButton />
 
       <div className="flex gap-2">
         {(["apostas", "transacoes"] as const).map((t) => (
