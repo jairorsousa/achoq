@@ -1,64 +1,108 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors */
-  --color-primary: #7C3AED;
-  --color-primary-dark: #5B21B6;
-  --color-sim: #22C55E;
-  --color-sim-dark: #16A34A;
-  --color-nao: #EF4444;
-  --color-nao-dark: #DC2626;
-  --color-coin: #F59E0B;
-  --color-coin-dark: #D97706;
-  --color-surface: #FFFFFF;
-  --color-background: #F3F0FF;
+  /* === Laranja Parcelinhas === */
+  --color-primary-50: #FFF5EF;
+  --color-primary-100: #FFE8DA;
+  --color-primary-200: #FFC7A8;
+  --color-primary-300: #FFA87D;
+  --color-primary-400: #FF8A57;
+  --color-primary-500: #FF6B2C;
+  --color-primary-600: #E85A1E;
+  --color-primary-700: #CC4A12;
 
-  /* Border Radius */
-  --radius-4xl: 2rem;
-  --radius-5xl: 2.5rem;
+  /* === Azul Confiança === */
+  --color-secondary-50: #EEF2F7;
+  --color-secondary-100: #C6D3E6;
+  --color-secondary-200: #8DA4C4;
+  --color-secondary-300: #4A6590;
+  --color-secondary-400: #2D4568;
+  --color-secondary-500: #1B2E4A;
+  --color-secondary-600: #14233A;
+  --color-secondary-700: #0E1A2C;
 
-  /* Box Shadows */
-  --shadow-btn-primary: 0 6px 0 #5B21B6;
-  --shadow-btn-sim: 0 6px 0 #16A34A;
-  --shadow-btn-nao: 0 6px 0 #DC2626;
-  --shadow-btn-coin: 0 6px 0 #D97706;
-  --shadow-card: 0 4px 16px rgba(124, 58, 237, 0.10);
+  /* === Verde Aprovado === */
+  --color-accent-50: #E6FBF8;
+  --color-accent-100: #CCF6F1;
+  --color-accent-200: #99EDE3;
+  --color-accent-300: #66E1D0;
+  --color-accent-400: #33D4BD;
+  --color-accent-500: #00C2A8;
+  --color-accent-600: #00A892;
 
-  /* Fonts */
-  --font-sans: var(--font-nunito), sans-serif;
-}
+  /* === Amarelo Promo === */
+  --color-yellow-100: #FFF4CC;
+  --color-yellow-200: #FFE999;
+  --color-yellow-300: #FFD966;
+  --color-yellow-400: #FFC933;
+  --color-yellow-500: #FFB800;
 
-:root {
-  --background: #F3F0FF;
-  --foreground: #1a1a2e;
+  /* === Feedback === */
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #3B82F6;
+
+  /* === Neutros === */
+  --color-gray-50: #FAFAFA;
+  --color-gray-100: #F0F0F0;
+  --color-gray-200: #E0E0E0;
+  --color-gray-300: #C4C4C4;
+  --color-gray-400: #9E9E9E;
+  --color-gray-500: #737373;
+  --color-gray-600: #595959;
+  --color-gray-700: #404040;
+  --color-gray-800: #2D2D2D;
+  --color-gray-900: #1A1A1A;
+  --color-white: #FFFFFF;
+
+  /* === Border Radius === */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* === Shadows === */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-btn-primary: 0 4px 12px rgba(255, 107, 44, 0.3);
+  --shadow-header: 0 2px 12px rgba(0, 0, 0, 0.08);
+
+  /* === Fonts === */
+  --font-display: var(--font-nunito), 'Nunito', sans-serif;
+  --font-body: var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-sans: var(--font-dm-sans), 'DM Sans', sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-nunito), sans-serif;
+  background: #FAFAFA;
+  color: #1A1A1A;
 }
 
-/* Custom Animations */
-@keyframes coin-bounce {
-  0%, 100% { transform: translateY(0) scale(1); }
-  30% { transform: translateY(-12px) scale(1.1); }
-  60% { transform: translateY(-6px) scale(1.05); }
+/* Scrollbar hide */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
+/* Animations */
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
 
-@keyframes confetti-fall {
-  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes pulse-fire {
-  0%, 100% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.15); filter: brightness(1.2); }
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 @keyframes slide-down {
@@ -66,19 +110,14 @@ body {
   to { transform: translateY(0); opacity: 1; }
 }
 
-@keyframes slide-up {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(-100%); opacity: 0; }
-}
-
-.animate-coin-bounce {
-  animation: coin-bounce 0.6s ease-in-out;
-}
-
 .animate-shimmer {
   animation: shimmer 1.5s infinite;
 }
 
-.animate-pulse-fire {
-  animation: pulse-fire 1.5s ease-in-out infinite;
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
 }
